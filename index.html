@@ -474,7 +474,7 @@
         </div>
 
         <button class="btn" type="button" id="findMatchesBtn" onclick="runMatching()">Find My Matches</button>
-        <p class="form-note" style="margin-top:.6rem;">Select a document and tick the consent box first. You can also match manually by choosing your qualification and field.</p>
+        <p class="form-note" style="margin-top:.6rem;">Upload your qualification document first. Recommendations and estimated fit percentages use your selected qualification, field and readable document text. Percentages are guidance only, not guaranteed chances of acceptance.</p>
       </div>
 
       <!-- MATCHES -->
@@ -1009,14 +1009,21 @@ function removeDoc(i){
 }
 
 async function runMatching(){
-  const p = PROFILES[CURRENT.email];
   const fileInput = document.getElementById('uploadFile');
   const qualSelect = document.getElementById('uploadQualLevel');
   const fieldSelect = document.getElementById('uploadField');
   const status = document.getElementById('parseStatus');
   if(!CURRENT || !PROFILES[CURRENT.email]){ alert('Please log in or create a candidate account before finding matches.'); goAuth('login'); return; }
   if(!status){ alert('The document status area is missing. Please refresh the updated website file.'); return; }
+  const p = PROFILES[CURRENT.email];
   const file = fileInput.files[0];
+  // Require at least one uploaded document before matching can begin.
+  if(!file && (!Array.isArray(p.docs) || p.docs.length === 0)){
+    status.className='form-note error';
+    status.textContent='Please upload a document (such as your Grade 12 results, certificate, diploma or CV) before finding matches.';
+    if(fileInput) fileInput.focus();
+    return;
+  }
   let extracted = '';
 
   if(file){
@@ -1037,20 +1044,18 @@ async function runMatching(){
       status.className='form-note success';
     } else if(file){ status.className='form-note error'; status.textContent='No readable text was found. If this is a scanned PDF, try uploading the page as an image or check the scan quality.'; }
     p.docs.push(file.name); fileInput.value='';
-  } else if(p.docs.length===0){
-    status.className='form-note'; status.textContent='No document selected. Matching will use the qualification and field you choose manually.';
   }
   refreshUploadList();
   p.qualLevel=qualSelect.value; p.field=fieldSelect.value;
-  const uni=UNIVERSITIES.filter(u=>u.fields.includes(p.field)&&u.minLevel.includes(p.qualLevel)).map(u=>({...u,pct:matchScore(u.name,p.extractedText)})).sort((a,b)=>b.pct-a.pct);
-  const courses=COURSES.filter(c=>c.field===p.field&&c.level.includes(p.qualLevel)).map(c=>({...c,pct:matchScore(c.name,p.extractedText)})).sort((a,b)=>b.pct-a.pct);
+  const uni=UNIVERSITIES.filter(u=>u.fields.includes(p.field)&&u.minLevel.includes(p.qualLevel)).map(u=>({...u,pct:estimateFit(u.name+' '+(u.apsHint||''),p.field,p.qualLevel,p.extractedText,'study')})).sort((a,b)=>b.pct-a.pct);
+  const courses=COURSES.filter(c=>c.field===p.field&&c.level.includes(p.qualLevel)).map(c=>({...c,pct:estimateFit(c.name+' '+c.desc,p.field,p.qualLevel,p.extractedText,'study')})).sort((a,b)=>b.pct-a.pct);
   // Do not fabricate employers or vacancies. Current opportunities are found through source/portal search links below.
-  const live=buildLiveOpportunityLinks(p.field,p.qualLevel,p.extractedText);
-  const posted=VACANCIES.filter(v=>!v.closed && v.ownerEmail!==CURRENT.email && v.field===p.field).map(v=>({name:v.title,location:v.location,field:v.field,desc:v.desc,company:v.company,pct:matchScore(v.title+' '+v.desc,p.extractedText),vacancy:{id:v.id},custom:true}));
+  const live=buildLiveOpportunityLinks(p.field,p.qualLevel,p.extractedText).map(x=>({...x,pct:estimateFit(x.name+' '+x.detail,p.field,p.qualLevel,p.extractedText,x.kind||'job')}));
+  const posted=VACANCIES.filter(v=>!v.closed && v.ownerEmail!==CURRENT.email && v.field===p.field).map(v=>({name:v.title,location:v.location,field:v.field,desc:v.desc,company:v.company,pct:estimateFit(v.title+' '+v.desc,p.field,p.qualLevel,p.extractedText,'job'),vacancy:{id:v.id},custom:true}));
   const companies=posted.concat(live.filter(x=>/LinkedIn Jobs|Careers24|Indeed South Africa|SAYouth|DPSA public/i.test(x.name)));
   const learnerships=live.filter(x=>/Learnerships and internships|SAYouth/i.test(x.name));
   p.matches={universities:uni,courses,companies,learnerships,live};
-  refreshOverview(); showDashPage('matches'); showMatchCat('live');
+  refreshOverview(); showDashPage('matches'); showMatchCat('companies');
 }
 
 async function extractDocumentText(file, progress){
@@ -1100,26 +1105,41 @@ function inferField(text){
   const scores={Business:(t.match(/accounting|commerce|business|economics|finance|management|marketing/g)||[]).length,IT:(t.match(/computer|information technology|programming|software|network|ict|data science/g)||[]).length,Engineering:(t.match(/engineering|mechanical|electrical|civil|physics|artisan/g)||[]).length,Health:(t.match(/nursing|health|biology|medical|clinical|pharmacy/g)||[]).length,Education:(t.match(/education|teaching|teacher|pedagogy/g)||[]).length,Law:(t.match(/law|legal|llb|attorney|paralegal/g)||[]).length,Humanities:(t.match(/psychology|sociology|humanities|social science|history|languages/g)||[]).length};
   const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0]; return best&&best[1]>0?best[0]:null;
 }
-function matchScore(title, text){
-  if(!text) return 70;
-  const words=String(title+' '+(text||'')).toLowerCase().match(/[a-z]{4,}/g)||[];
-  const titleWords=String(title).toLowerCase().match(/[a-z]{4,}/g)||[];
-  const unique=[...new Set(titleWords)]; const hits=unique.filter(w=>(text.toLowerCase()).includes(w)).length;
-  return Math.max(45,Math.min(95,Math.round(55+(hits/Math.max(unique.length,1))*40)));
+function estimateFit(title, field, qual, text, kind='job'){
+  // This is a transparent profile-fit estimate, NOT a real probability of being hired/admitted.
+  const titleText=String(title||'').toLowerCase();
+  const doc=String(text||'').toLowerCase();
+  const fieldTerms={Business:['business','commerce','finance','accounting','retail','bank','management','economics'],IT:['information technology','software','computer','programming','network','data','support','ict'],Engineering:['engineering','artisan','technician','electrical','mechanical','civil','maintenance','plant'],Health:['health','nursing','medical','clinical','pharmacy','care'],Education:['education','teaching','teacher','learning','school'],Law:['law','legal','paralegal','attorney'],Humanities:['humanities','social science','psychology','community','research']}[field]||[String(field||'').toLowerCase()];
+  let score=45;
+  if(fieldTerms.some(w=>titleText.includes(w))) score+=18;
+  if(qual==='Grade 12' && /learnership|intern|entry.level|assistant|trainee|matric|school leaver|junior/i.test(titleText)) score+=17;
+  else if(qual==='Certificate' && /certificate|support|assistant|technician|junior|learnership|trainee/i.test(titleText)) score+=14;
+  else if(qual==='Diploma' && /diploma|technician|junior|graduate|coordinator|support|intern/i.test(titleText)) score+=14;
+  else if(qual==='Degree' && /degree|graduate|analyst|professional|engineer|developer|specialist|trainee/i.test(titleText)) score+=14;
+  else if(qual==='Postgraduate' && /senior|postgraduate|specialist|advanced|manager/i.test(titleText)) score+=12;
+  if(kind==='study' && /requirements|aps|admission|course|university|diploma|bachelor|certificate/i.test(titleText)) score+=8;
+  const titleWords=[...new Set(titleText.match(/[a-z]{4,}/g)||[])].filter(w=>!['south','africa','jobs','search','current','matching','opportunities'].includes(w));
+  if(doc && titleWords.length){
+    const hits=titleWords.filter(w=>doc.includes(w)).length;
+    score+=Math.min(12,Math.round(hits/titleWords.length*12));
+  }
+  if(!doc) score-=5;
+  return Math.max(35,Math.min(92,score));
 }
 function buildLiveOpportunityLinks(field, qual, text){
-  const keywords=({Business:'business commerce finance accounting',IT:'information technology software support',Engineering:'engineering artisan technician',Health:'healthcare nursing',Education:'education teaching',Law:'law legal',Humanities:'humanities social sciences'})[field]||field;
-  const q=encodeURIComponent((keywords+' '+qual+' South Africa vacancies').trim());
-  const learnQ=encodeURIComponent((keywords+' learnership internship South Africa 2026').trim());
-  const courseQ=encodeURIComponent((keywords+' South Africa university admission requirements '+qual).trim());
+  const fieldTerms=({Business:'business commerce finance accounting retail customer service',IT:'IT information technology help desk technical support software',Engineering:'engineering artisan electrical mechanical maintenance technician',Health:'healthcare nursing patient care health assistant',Education:'education teaching classroom assistant',Law:'legal administration paralegal',Humanities:'community development social services research'})[field]||field;
+  const levelTerms=({'Grade 12':'entry level school leaver learnership internship assistant','Certificate':'certificate junior assistant support trainee','Diploma':'diploma junior technician coordinator graduate internship','Degree':'graduate trainee junior analyst professional','Postgraduate':'postgraduate specialist advanced'})[qual]||qual;
+  const q=encodeURIComponent((fieldTerms+' '+levelTerms+' South Africa vacancies').trim());
+  const learnQ=encodeURIComponent((fieldTerms+' '+levelTerms+' learnership internship South Africa').trim());
+  const courseQ=encodeURIComponent((fieldTerms+' South Africa official admission requirements '+qual).trim());
   return [
-    {name:'SAYouth.mobi opportunities',source:'SAYouth · youth jobs and opportunities',detail:'Search current opportunities on the official SAYouth platform. Availability and eligibility are confirmed on the listing.',url:'https://sayouth.mobi/'},
-    {name:'DPSA public service vacancies',source:'Department of Public Service and Administration',detail:'Check official public-service vacancy circulars and verify closing dates.',url:'https://www.dpsa.gov.za/newsroom/psvc/'},
-    {name:'LinkedIn Jobs — matching keywords',source:'LinkedIn Jobs search',detail:'Search results can change frequently. Check employer, location, requirements and closing date.',url:'https://www.linkedin.com/jobs/search/?keywords='+q},
-    {name:'Careers24 — matching keywords',source:'Careers24 search',detail:'Open the current search results and verify each vacancy on the employer page.',url:'https://www.careers24.com/jobs/?q='+q},
-    {name:'Indeed South Africa — matching keywords',source:'Indeed South Africa search',detail:'Search current listings using your selected field and qualification.',url:'https://za.indeed.com/jobs?q='+q},
-    {name:'Learnerships and internships',source:'Career discovery search',detail:'Search current learnerships/internships. Check age, NQF level, location, stipend and deadline.',url:'https://www.google.com/search?q='+learnQ},
-    {name:'University and course entry requirements',source:'Official institution pages via search',detail:'Compare subject marks, APS, language requirements and application dates on the institution’s official site.',url:'https://www.google.com/search?q='+courseQ}
+    {name:'SAYouth.mobi — youth opportunities',source:'SAYouth · youth jobs and opportunities',kind:'job',detail:'Useful for entry-level work, training and youth opportunities. Confirm age, qualification, location and closing date on each listing.',url:'https://sayouth.mobi/'},
+    {name:'DPSA public service vacancies',source:'Department of Public Service and Administration',kind:'job',detail:'Official public-service vacancy circulars. Many posts have strict minimum qualifications and closing dates.',url:'https://www.dpsa.gov.za/newsroom/psvc/'},
+    {name:'LinkedIn Jobs — tailored search',source:'LinkedIn Jobs search',kind:'job',detail:'Search terms are tailored to your selected field and qualification level. Verify requirements with the employer.',url:'https://www.linkedin.com/jobs/search/?keywords='+q},
+    {name:'Careers24 — tailored search',source:'Careers24 search',kind:'job',detail:'Search results are live and may include unsuitable posts; check each listing’s minimum requirements and deadline.',url:'https://www.careers24.com/jobs/?q='+q},
+    {name:'Indeed South Africa — tailored search',source:'Indeed South Africa search',kind:'job',detail:'Searches for roles aligned to your field and qualification level. Confirm the vacancy is still open before applying.',url:'https://za.indeed.com/jobs?q='+q},
+    {name:'Learnerships and internships — tailored search',source:'Career discovery search',kind:'learnership',detail:'Targeted search for training routes. Check NQF level, age limits, stipend, location and deadline.',url:'https://www.google.com/search?q='+learnQ},
+    {name:'Official university/course requirements',source:'Institution admission research',kind:'study',detail:'Compare APS, subject marks, language requirements and application dates on the institution’s official website.',url:'https://www.google.com/search?q='+courseQ}
   ];
 }
 
@@ -1136,7 +1156,7 @@ function refreshMatchesView(){
   empty.classList.add('hidden');
   content.classList.remove('hidden');
   document.getElementById('matchesSubtitle').textContent =
-    `Matched on ${p.qualLevel} · ${fieldLabel(p.field)}`;
+    `Matched on ${p.qualLevel} · ${fieldLabel(p.field)}. Percentages are estimated profile-fit scores, not guaranteed hiring or admission probabilities.`;
   showMatchCat(activeMatchCat);
 }
 
@@ -1169,7 +1189,7 @@ function showMatchCat(cat){
     let title, sub, meta, appName, appType, vacancyId = null, badge = '';
     if(item.url){
       title=item.name; sub=item.source; meta=item.detail;
-      card.innerHTML=`<span class="pill pill-indigo">Source link</span><h4>${esc(title)}</h4><div class="sub">${esc(sub)}</div><div class="meta">${esc(meta)}</div><a class="btn btn-sm" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Open current listings ↗</a>`;
+      card.innerHTML=`<div class="score" data-pct="${item.pct||50}" style="--pct:${item.pct||50};"></div><span class="pill pill-indigo">Suggested source</span><h4>${esc(title)}</h4><div class="sub">${esc(sub)}</div><div class="meta">${esc(meta)}</div><p class="form-note">Estimated profile fit: <b>${item.pct||50}%</b> · not a hiring/admission probability.</p><a class="btn btn-sm" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Open tailored search ↗</a>`;
       grid.appendChild(card); return;
     }
 
