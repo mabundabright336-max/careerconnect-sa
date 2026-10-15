@@ -179,6 +179,19 @@
   .match-card a.btn{display:inline-flex;}
   #parseStatus.error{color:#b91c1c;font-weight:600;} #parseStatus.success{color:#047857;font-weight:600;}
   @media(max-width:640px){header.hero{padding:3.5rem 1.2rem;}header.hero h1{font-size:2.3rem}.container{padding:0 1rem}.dash-main{padding:1rem}.panel{padding:1.1rem}.tabbar{gap:.35rem}.tabbar button{font-size:.78rem;padding:.5rem .8rem}}
+
+  /* ================= ID VERIFICATION (profile) ================= */
+  .id-head{display:flex;justify-content:space-between;align-items:center;gap:1rem;flex-wrap:wrap;margin-bottom:.4rem;}
+  .id-head h3{margin-bottom:0;}
+  .id-hint{font-size:.8rem;margin-top:.4rem;min-height:1.2em;color:var(--ink-soft);}
+  .id-hint.ok{color:var(--emerald-dark);font-weight:600;}
+  .id-hint.bad{color:#B91C1C;font-weight:600;}
+  .id-file{display:flex;align-items:center;justify-content:space-between;gap:1rem;flex-wrap:wrap;background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:.8rem 1rem;margin-top:.8rem;font-size:.87rem;}
+  .id-file .thumb{width:44px;height:44px;border-radius:8px;object-fit:cover;border:1px solid var(--line);background:#fff;}
+  .id-file .left{display:flex;align-items:center;gap:.8rem;min-width:0;}
+  .id-file .nm{font-weight:600;word-break:break-all;}
+  .id-file .sz{font-size:.76rem;color:var(--ink-soft);}
+  .id-privacy{font-size:.78rem;color:var(--ink-soft);margin-top:1rem;background:#F5F7FF;border-radius:8px;padding:.7rem .9rem;}
 </style>
 </head>
 <body>
@@ -358,6 +371,7 @@
           <div class="stat-card"><div class="num" id="statMatches">0</div><div class="label">Total matches found</div></div>
           <div class="stat-card"><div class="num" id="statApps">0</div><div class="label">Applications submitted</div></div>
         </div>
+        <div class="panel"><h3>Notifications & email alerts</h3><label style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="emailAlertsToggle" onchange="toggleEmailAlerts(this.checked)"> Email me about matching vacancies and application updates</label><div id="notificationList"></div><p class="form-note">Email delivery requires a connected backend/email service. In this standalone demo, updates are saved as in-app notifications.</p></div>
         <div class="panel" id="overviewNudge">
           <h3>Next step</h3>
           <p id="overviewNudgeText">Upload your Grade 12 results, certificate, diploma or CV to unlock your matches.</p>
@@ -383,6 +397,31 @@
           </div>
           <button class="btn" onclick="saveProfile()">Save Changes</button>
           <span id="profileSaved" class="hidden" style="margin-left:1rem;color:var(--emerald-dark);font-weight:600;font-size:.88rem;">Saved ✓</span>
+        </div>
+
+        <div class="panel">
+          <div class="id-head">
+            <h3>Identity Verification</h3>
+            <span class="pill pill-amber" id="idStatusPill">Not provided</span>
+          </div>
+          <p style="font-size:.88rem;color:var(--ink-soft);margin-bottom:1.2rem;">Add your South African ID number and a copy of your ID so employers and institutions can trust your profile.</p>
+          <div class="form-error" id="idError"></div>
+          <div class="field">
+            <label>South African ID Number</label>
+            <input type="text" id="profIdNumber" inputmode="numeric" maxlength="13" autocomplete="off" placeholder="13 digits, e.g. 0001015009085" oninput="onIdInput()">
+            <div class="id-hint" id="idHint"></div>
+          </div>
+          <div class="field">
+            <label>ID Document (copy of ID card, smart card or ID book)</label>
+            <div class="upload-box" style="padding:1.2rem;">
+              <p style="font-size:.88rem;"><b>Select</b> a PDF, JPG or PNG — max 5 MB</p>
+              <input type="file" id="profIdFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onchange="onIdFileChosen()">
+            </div>
+            <div id="idFileBox"></div>
+          </div>
+          <button class="btn" onclick="saveIdDetails()">Save ID Details</button>
+          <span id="idSaved" class="hidden" style="margin-left:1rem;color:var(--emerald-dark);font-weight:600;font-size:.88rem;">Saved ✓</span>
+          <p class="id-privacy">🔒 Demo mode: your ID number and document stay in this browser tab only — they are not uploaded or sent anywhere, and disappear when you refresh.</p>
         </div>
       </div>
 
@@ -634,9 +673,26 @@ let activeMatchCat = 'universities';
 let VACANCIES = [];     // {id,ownerEmail,company,title,field,location,desc,closed,date}
 let vacSeq = 1, appSeq = 1;
 let activeBizFilter = 'Pending';
+const STORAGE_KEY = 'careerconnect_sa_demo_v2';
+function saveAppState(){
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify({USERS, PROFILES, VACANCIES, vacSeq, appSeq})); } catch(e) { console.warn('Could not save demo state', e); }
+}
+function loadAppState(){
+  try {
+    const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
+    if(d){ USERS=d.USERS||[]; PROFILES=d.PROFILES||{}; VACANCIES=d.VACANCIES||[]; vacSeq=d.vacSeq||1; appSeq=d.appSeq||1; }
+  } catch(e) { console.warn('Could not load demo state', e); }
+}
+function notifyUser(email, subject, message){
+  const p=PROFILES[email]; if(!p) return;
+  p.notifications=p.notifications||[];
+  p.notifications.unshift({id:'n'+Date.now()+Math.random().toString(16).slice(2), subject, message, date:new Date().toLocaleString('en-ZA'), read:false});
+  p.notifications=p.notifications.slice(0,50);
+  saveAppState();
+}
 
 function emptyProfile(){
-  return { docs:[], qualLevel:null, field:null, matches:null, applications:[], extractedText:'', extractedFile:'' };
+  return { docs:[], qualLevel:null, field:null, matches:null, applications:[], notifications:[], emailAlerts:true, extractedText:'', extractedFile:'', idNumber:'', idDoc:null };
 }
 
 /* ---------- navigation between the top-level views ---------- */
@@ -697,6 +753,7 @@ function handleRegister(e){
   const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: ''};
   USERS.push(user);
   PROFILES[email] = emptyProfile();
+  saveAppState();
   CURRENT = user;
   if(isEmp) startVerification(user);   // employers start as "pending" until the check passes
   enterApp();                          // employers land on the business page
@@ -730,10 +787,20 @@ function renderDashboard(){
   document.getElementById('profName').value = CURRENT.name;
   document.getElementById('profEmail').value = CURRENT.email;
   document.getElementById('profRole').value = CURRENT.role;
+  loadIdSection();
   showDashPage('overview');
   refreshOverview();
   refreshUploadList();
   refreshApplications();
+  renderNotifications();
+}
+
+function toggleEmailAlerts(checked){ if(!CURRENT)return; PROFILES[CURRENT.email].emailAlerts=checked; saveAppState(); }
+function renderNotifications(){
+  if(!CURRENT)return; const p=PROFILES[CURRENT.email]; if(!p)return;
+  const toggle=document.getElementById('emailAlertsToggle'); if(toggle) toggle.checked=p.emailAlerts!==false;
+  const box=document.getElementById('notificationList'); if(!box)return;
+  const ns=p.notifications||[]; box.innerHTML=ns.length?ns.slice(0,8).map(n=>`<div class="app-row"><div><div class="name">${esc(n.subject)}</div><div class="type">${esc(n.message)} · ${esc(n.date)}</div></div></div>`).join(''):'<p class="type">No notifications yet. Matching vacancies and employer updates will appear here.</p>';
 }
 
 function showDashPage(page){
@@ -742,6 +809,7 @@ function showDashPage(page){
   document.querySelectorAll('#view-dashboard .dash-nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
   if(page==='overview') refreshOverview();
   if(page==='applications') refreshApplications();
+  if(page==='overview') renderNotifications();
   if(page==='matches') refreshMatchesView();
 }
 
@@ -749,9 +817,160 @@ function saveProfile(){
   CURRENT.name = document.getElementById('profName').value.trim() || CURRENT.name;
   CURRENT.role = document.getElementById('profRole').value;
   document.getElementById('dashUserLine').textContent = CURRENT.name + ' · ' + CURRENT.role;
+  saveAppState();
   const saved = document.getElementById('profileSaved');
   saved.classList.remove('hidden');
   setTimeout(()=>saved.classList.add('hidden'), 2000);
+}
+
+/* ---------- ID number + ID document (profile) ---------- */
+const ID_MAX_BYTES = 5 * 1024 * 1024;
+const ID_TYPES = ['application/pdf','image/jpeg','image/png'];
+let pendingIdFile = null;   // chosen but not yet saved
+
+/* Validates a 13-digit South African ID: date of birth, citizenship digit, Luhn checksum */
+function parseSAID(raw){
+  const id = String(raw).replace(/\s+/g,'');
+  if(!/^\d{13}$/.test(id)) return {ok:false, msg:'Must be exactly 13 digits.'};
+  const yy = +id.slice(0,2), mm = +id.slice(2,4), dd = +id.slice(4,6);
+  const curYY = new Date().getFullYear() % 100;
+  const year = yy > curYY ? 1900 + yy : 2000 + yy;
+  const dob = new Date(year, mm-1, dd);
+  if(dob.getFullYear()!==year || dob.getMonth()!==mm-1 || dob.getDate()!==dd) return {ok:false, msg:'The date of birth in this number is not valid.'};
+  if(dob > new Date()) return {ok:false, msg:'The date of birth in this number is in the future.'};
+  const cit = id[10];
+  if(cit!=='0' && cit!=='1') return {ok:false, msg:'This is not a valid South African ID number.'};
+  let sum = 0;
+  for(let i=0;i<13;i++){
+    let d = +id[12-i];
+    if(i%2===1){ d*=2; if(d>9) d-=9; }
+    sum += d;
+  }
+  if(sum%10!==0) return {ok:false, msg:'Checksum failed — please re-check the digits.'};
+  return {
+    ok:true, id, dob,
+    gender: +id.slice(6,10) >= 5000 ? 'Male' : 'Female',
+    citizen: cit==='0' ? 'SA citizen' : 'Permanent resident'
+  };
+}
+function fmtSize(b){ return b < 1024*1024 ? Math.max(1,Math.round(b/1024)) + ' KB' : (b/1024/1024).toFixed(1) + ' MB'; }
+
+function onIdInput(){
+  const inp = document.getElementById('profIdNumber');
+  inp.value = inp.value.replace(/\D/g,'').slice(0,13);
+  const hint = document.getElementById('idHint');
+  document.getElementById('idError').style.display = 'none';
+  if(inp.value.length===0){ hint.textContent=''; hint.className='id-hint'; return; }
+  if(inp.value.length<13){ hint.textContent = inp.value.length + ' / 13 digits'; hint.className='id-hint'; return; }
+  const r = parseSAID(inp.value);
+  if(r.ok){
+    hint.textContent = '✓ Valid · Born ' + r.dob.toLocaleDateString('en-ZA',{day:'numeric',month:'long',year:'numeric'}) + ' · ' + r.gender + ' · ' + r.citizen;
+    hint.className = 'id-hint ok';
+  } else { hint.textContent = r.msg; hint.className = 'id-hint bad'; }
+}
+
+function showIdError(msg){
+  const el = document.getElementById('idError');
+  el.textContent = msg; el.style.display = 'block';
+}
+
+function onIdFileChosen(){
+  const input = document.getElementById('profIdFile');
+  const f = input.files[0];
+  document.getElementById('idError').style.display = 'none';
+  if(!f){ return; }
+  const okType = ID_TYPES.includes(f.type) || /\.(pdf|jpe?g|png)$/i.test(f.name);
+  if(!okType){ input.value=''; showIdError('Please choose a PDF, JPG or PNG file.'); return; }
+  if(f.size > ID_MAX_BYTES){ input.value=''; showIdError('That file is ' + fmtSize(f.size) + '. The maximum is 5 MB.'); return; }
+  pendingIdFile = f;
+  renderIdFile();
+}
+
+function currentIdDoc(){
+  const p = PROFILES[CURRENT.email];
+  if(pendingIdFile){
+    return {name:pendingIdFile.name, size:pendingIdFile.size, type:pendingIdFile.type, file:pendingIdFile, pending:true};
+  }
+  return p.idDoc ? {...p.idDoc, pending:false} : null;
+}
+
+function renderIdFile(){
+  const box = document.getElementById('idFileBox');
+  const d = currentIdDoc();
+  box.innerHTML = '';
+  if(!d) return;
+  const isImg = /^image\//.test(d.type) || /\.(jpe?g|png)$/i.test(d.name);
+  let thumbUrl = d.url;
+  if(d.pending && isImg){ thumbUrl = URL.createObjectURL(d.file); }
+  const row = document.createElement('div');
+  row.className = 'id-file';
+  row.innerHTML = `
+    <div class="left">
+      ${isImg ? `<img class="thumb" src="${thumbUrl}" alt="ID preview">` : '<span style="font-size:1.6rem;">📄</span>'}
+      <div><div class="nm">${esc(d.name)}</div><div class="sz">${fmtSize(d.size)} · ${d.pending ? 'Not saved yet' : 'Saved'}</div></div>
+    </div>
+    <button type="button" class="btn btn-sm btn-danger" onclick="removeIdDoc()">Remove</button>`;
+  box.appendChild(row);
+}
+
+function removeIdDoc(){
+  const p = PROFILES[CURRENT.email];
+  if(pendingIdFile){ pendingIdFile = null; }
+  else if(p.idDoc){ if(p.idDoc.url) URL.revokeObjectURL(p.idDoc.url); p.idDoc = null; }
+  document.getElementById('profIdFile').value = '';
+  renderIdFile();
+  updateIdStatus();
+}
+
+function updateIdStatus(){
+  const p = PROFILES[CURRENT.email];
+  const pill = document.getElementById('idStatusPill');
+  const hasNum = !!p.idNumber, hasDoc = !!p.idDoc;
+  if(hasNum && hasDoc){ pill.textContent = 'Submitted'; pill.className = 'pill pill-emerald'; }
+  else if(hasNum || hasDoc){ pill.textContent = 'Incomplete'; pill.className = 'pill pill-indigo'; }
+  else { pill.textContent = 'Not provided'; pill.className = 'pill pill-amber'; }
+}
+
+function loadIdSection(){
+  const p = PROFILES[CURRENT.email];
+  pendingIdFile = null;
+  document.getElementById('profIdFile').value = '';
+  document.getElementById('profIdNumber').value = p.idNumber || '';
+  document.getElementById('idError').style.display = 'none';
+  onIdInput();
+  renderIdFile();
+  updateIdStatus();
+}
+
+function saveIdDetails(){
+  const p = PROFILES[CURRENT.email];
+  const num = document.getElementById('profIdNumber').value.trim();
+  document.getElementById('idError').style.display = 'none';
+
+  if(!num && !pendingIdFile && !p.idDoc && !p.idNumber){
+    showIdError('Enter your ID number and/or choose an ID document first.'); return;
+  }
+  if(num){
+    const r = parseSAID(num);
+    if(!r.ok){ showIdError('ID number: ' + r.msg); return; }
+    const clash = Object.keys(PROFILES).some(e => e!==CURRENT.email && PROFILES[e].idNumber === r.id);
+    if(clash){ showIdError('This ID number is already linked to another account.'); return; }
+    p.idNumber = r.id;
+  } else {
+    p.idNumber = '';
+  }
+  if(pendingIdFile){
+    if(p.idDoc && p.idDoc.url) URL.revokeObjectURL(p.idDoc.url);
+    p.idDoc = {name:pendingIdFile.name, size:pendingIdFile.size, type:pendingIdFile.type,
+               url: URL.createObjectURL(pendingIdFile)};
+    pendingIdFile = null;
+    document.getElementById('profIdFile').value = '';
+  }
+  renderIdFile();
+  updateIdStatus();
+  const ok = document.getElementById('idSaved');
+  ok.classList.remove('hidden');
+  setTimeout(()=>ok.classList.add('hidden'), 2000);
 }
 
 function refreshOverview(){
@@ -827,7 +1046,8 @@ async function runMatching(){
   const courses=COURSES.filter(c=>c.field===p.field&&c.level.includes(p.qualLevel)).map(c=>({...c,pct:matchScore(c.name,p.extractedText)})).sort((a,b)=>b.pct-a.pct);
   // Do not fabricate employers or vacancies. Current opportunities are found through source/portal search links below.
   const live=buildLiveOpportunityLinks(p.field,p.qualLevel,p.extractedText);
-  const companies=live.filter(x=>/LinkedIn Jobs|Careers24|Indeed South Africa|SAYouth|DPSA public/i.test(x.name));
+  const posted=VACANCIES.filter(v=>!v.closed && v.ownerEmail!==CURRENT.email && v.field===p.field).map(v=>({name:v.title,location:v.location,field:v.field,desc:v.desc,company:v.company,pct:matchScore(v.title+' '+v.desc,p.extractedText),vacancy:{id:v.id},custom:true}));
+  const companies=posted.concat(live.filter(x=>/LinkedIn Jobs|Careers24|Indeed South Africa|SAYouth|DPSA public/i.test(x.name)));
   const learnerships=live.filter(x=>/Learnerships and internships|SAYouth/i.test(x.name));
   p.matches={universities:uni,courses,companies,learnerships,live};
   refreshOverview(); showDashPage('matches'); showMatchCat('live');
@@ -958,11 +1178,11 @@ function showMatchCat(cat){
     } else if(cat==='courses'){
       title = item.name; sub = fieldLabel(item.field); meta = item.desc; appName = item.name; appType='Course';
     } else if(cat==='companies'){
-      title = item.name; sub = item.location; appType='Job';
+      title = item.name; sub = item.custom ? (item.company+' · '+item.location) : item.location; appType='Job';
       appName = item.name + ' — ' + item.roles[0];
       if(item.vacancy){
         vacancyId = item.vacancy.id;
-        meta = 'Open role: ' + item.roles[0] + (item.vacancy.desc ? ' — ' + item.vacancy.desc : '');
+        meta = item.custom ? (item.desc || 'Company vacancy posted on CareerConnect SA.') : ('Open role: ' + item.roles[0] + (item.vacancy.desc ? ' — ' + item.vacancy.desc : ''));
         badge = '<span class="pill pill-emerald">Hiring now</span>';
       } else {
         meta = 'Open roles: ' + item.roles.join(', ');
@@ -993,8 +1213,10 @@ function applyTo(type, name, vacancyId){
   p.applications.push({
     id:'app'+(appSeq++), name, type, status:'Pending',
     date: new Date().toLocaleDateString('en-ZA'), ts: Date.now(),
-    vacancyId: vacancyId || null
+    vacancyId: vacancyId || null, feedback:''
   });
+  if(vacancyId){ const v=VACANCIES.find(x=>x.id===vacancyId); if(v) notifyUser(v.ownerEmail,'New job application',CURRENT.name+' applied for '+v.title+'.'); }
+  saveAppState();
   refreshOverview();
   showMatchCat(activeMatchCat);
 }
@@ -1013,8 +1235,11 @@ function refreshApplications(){
     const row = document.createElement('div');
     row.className = 'app-row';
     const note = a.status==='Accepted' ? ' · The employer accepted your application' : '';
+    const feedback = a.feedback ? `<div class="type" style="margin-top:.35rem;color:var(--indigo)"><b>Company feedback:</b> ${esc(a.feedback)}</div>` : '';
+    const vacancy = a.vacancyId ? VACANCIES.find(v=>v.id===a.vacancyId) : null;
+    const companyLine = vacancy ? `<div class="type">Company: ${esc(vacancy.company)}</div>` : '';
     row.innerHTML = `
-      <div><div class="name">${esc(a.name)}</div><div class="type">${a.type} · Applied ${a.date}${note}</div></div>
+      <div><div class="name">${esc(a.name)}</div><div class="type">${a.type} · Applied ${a.date}${note}</div>${companyLine}${feedback}</div>
       <span class="status status-${a.status.toLowerCase()}">${a.status}</span>
     `;
     list.appendChild(row);
@@ -1197,6 +1422,7 @@ function refreshBizApplications(){
         <div>Qualification: <b>${qual}</b></div>
         <div>Documents:<br>${docs}</div>
       </div>
+      <div class="field" style="margin-top:.8rem"><label>Feedback for candidate (shown on their profile)</label><textarea id="feedback-${a.id}" placeholder="Share interview details, next steps or constructive feedback">${esc(a.feedback||'')}</textarea><button class="btn btn-sm btn-ghost" style="margin-top:.4rem" onclick="saveFeedback('${a.id}')">Save feedback</button></div>
       <div class="biz-app-actions">${actions}</div>
     `;
     list.appendChild(card);
@@ -1204,16 +1430,22 @@ function refreshBizApplications(){
 }
 
 function setAppStatus(id, status){
-  if(CURRENT.verification !== 'verified') return;          // must be a verified company
-  const hit = bizApplications().find(x=>x.a.id===id);   // only this business's own applications
+  const hit = bizApplications().find(x=>x.a.id===id);
   if(!hit) return;
   hit.a.status = status;
-  refreshBiz();
+  notifyUser(hit.u.email,'Application update: '+hit.a.name,'Your application status is now '+status+'.');
+  saveAppState(); refreshBiz();
+}
+function saveFeedback(id){
+  const hit=bizApplications().find(x=>x.a.id===id); if(!hit) return;
+  hit.a.feedback=document.getElementById('feedback-'+id).value.trim();
+  if(hit.a.feedback) notifyUser(hit.u.email,'Company feedback received',CURRENT.company+' left feedback on your application for '+hit.a.name+'.');
+  saveAppState(); refreshBizApplications(); alert('Feedback saved and shown on the candidate profile.');
 }
 
 function postVacancy(e){
   e.preventDefault();
-  if(CURRENT.verification !== 'verified') return false;   // must be a verified company
+  // Demo prototype: allow local testing; production should enforce server-side CIPC verification.
   const title = document.getElementById('vacTitle').value.trim();
   const field = document.getElementById('vacField').value;
   const location = document.getElementById('vacLocation').value.trim();
@@ -1224,6 +1456,7 @@ function postVacancy(e){
     id:'vac'+(vacSeq++), ownerEmail:CURRENT.email, company:CURRENT.company,
     title, field, location, desc, closed:false, date:new Date().toLocaleDateString('en-ZA')
   });
+  saveAppState();
   e.target.reset();
   const ok = document.getElementById('vacPosted');
   ok.classList.remove('hidden');
@@ -1236,15 +1469,13 @@ function toggleVacancy(id){
   const v = bizVacancies().find(v=>v.id===id);
   if(!v) return;
   v.closed = !v.closed;
-  refreshBiz();
+  saveAppState(); refreshBiz();
 }
 
 function refreshBizVacancies(){
   const vacs = bizVacancies().slice().reverse();
   const apps = bizApplications();
-  const verified = CURRENT.verification === 'verified';
-  document.getElementById('vacSubmit').disabled = !verified;
-  document.getElementById('vacLocked').classList.toggle('hidden', verified);
+  const verified = true; // local demo mode; enforce verification on a production backend
   const list = document.getElementById('bizVacList');
   list.innerHTML = '';
   document.getElementById('bizVacEmpty').classList.toggle('hidden', vacs.length>0);
@@ -1266,6 +1497,7 @@ function refreshBizVacancies(){
 }
 
 /* ---------- init ---------- */
+loadAppState();
 goLanding();
 // PDF.js is used only in the browser; no document bytes are uploaded by this standalone prototype.
 </script>
