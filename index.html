@@ -40,7 +40,9 @@
 
   /* ================= LANDING ================= */
   header.hero{background:linear-gradient(135deg,var(--indigo) 0%, var(--violet) 100%);color:#fff;padding:5.5rem 2rem 6rem;text-align:center;position:relative;overflow:hidden;}
-  header.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%, rgba(245,158,11,.25), transparent 45%);}
+  header.hero::after{content:"";position:absolute;inset:0;pointer-events:none;background:radial-gradient(circle at 80% 20%, rgba(245,158,11,.25), transparent 45%);}
+  header.hero .eyebrow,header.hero h1,header.hero p,header.hero .hero-actions{z-index:1;}
+  header.hero .hero-actions button{position:relative;z-index:2;pointer-events:auto;}
   header.hero .eyebrow{position:relative;display:inline-block;background:rgba(255,255,255,.15);padding:.4rem 1rem;border-radius:999px;font-size:.8rem;font-weight:600;letter-spacing:.03em;margin-bottom:1.2rem;}
   header.hero h1{position:relative;font-size:3.2rem;font-weight:800;margin-bottom:1rem;}
   header.hero p{position:relative;font-size:1.2rem;opacity:.92;max-width:640px;margin:0 auto 2rem;}
@@ -178,6 +180,28 @@
   .match-card .source{font-size:.75rem;color:var(--ink-soft);margin:.5rem 0 .8rem;}
   .match-card a.btn{display:inline-flex;}
   #parseStatus.error{color:#b91c1c;font-weight:600;} #parseStatus.success{color:#047857;font-weight:600;}
+
+  /* Friendly CareerConnect help chatbot */
+  .cc-chat-launcher{position:fixed;right:22px;bottom:22px;z-index:9998;border:0;border-radius:999px;background:var(--indigo);color:#fff;padding:.9rem 1.15rem;box-shadow:0 10px 30px rgba(31,41,55,.25);font-weight:700;display:flex;align-items:center;gap:.55rem;}
+  .cc-chat-launcher:hover{background:#4338ca;transform:translateY(-1px);}
+  .cc-chat-panel{position:fixed;right:22px;bottom:86px;z-index:9999;width:min(370px,calc(100vw - 28px));height:min(540px,calc(100vh - 120px));background:#fff;border:1px solid var(--line);border-radius:18px;box-shadow:0 18px 60px rgba(15,23,42,.24);display:flex;flex-direction:column;overflow:hidden;}
+  .cc-chat-head{background:linear-gradient(135deg,var(--indigo),var(--violet));color:#fff;padding:1rem;display:flex;align-items:center;justify-content:space-between;gap:.8rem;}
+  .cc-chat-head strong{display:block;font-family:'Poppins',sans-serif;font-size:1rem;}
+  .cc-chat-head small{display:block;opacity:.9;font-size:.76rem;}
+  .cc-chat-close{border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:8px;width:34px;height:34px;font-size:1.25rem;}
+  .cc-chat-messages{padding:1rem;flex:1;overflow-y:auto;background:#f8fafc;display:flex;flex-direction:column;gap:.75rem;}
+  .cc-chat-msg{max-width:90%;padding:.7rem .85rem;border-radius:14px;font-size:.86rem;line-height:1.5;white-space:pre-wrap;overflow-wrap:anywhere;}
+  .cc-chat-msg.bot{align-self:flex-start;background:#fff;border:1px solid var(--line);border-bottom-left-radius:4px;}
+  .cc-chat-msg.user{align-self:flex-end;background:#e0e7ff;color:#312e81;border-bottom-right-radius:4px;}
+  .cc-chat-quick{display:flex;flex-wrap:wrap;gap:.4rem;padding:.65rem .8rem;background:#fff;border-top:1px solid var(--line);}
+  .cc-chat-quick button{border:1px solid #c7d2fe;background:#eef2ff;color:#3730a3;border-radius:999px;padding:.4rem .65rem;font-size:.74rem;font-weight:600;}
+  .cc-chat-compose{display:flex;gap:.5rem;padding:.75rem;background:#fff;border-top:1px solid var(--line);}
+  .cc-chat-compose input{flex:1;min-width:0;border:1px solid #cbd5e1;border-radius:10px;padding:.75rem;font:inherit;font-size:.86rem;}
+  .cc-chat-compose input:focus{outline:2px solid #c7d2fe;border-color:var(--indigo);}
+  .cc-chat-compose button{border:0;border-radius:10px;background:var(--emerald);color:#fff;padding:.65rem .85rem;font-weight:700;}
+  .cc-chat-note{font-size:.68rem;color:#64748b;text-align:center;padding:0 .6rem .55rem;background:#fff;}
+  @media(max-width:480px){.cc-chat-launcher{right:14px;bottom:14px}.cc-chat-panel{right:8px;bottom:75px;width:calc(100vw - 16px);height:min(540px,calc(100vh - 95px));}}
+
   @media(max-width:640px){header.hero{padding:3.5rem 1.2rem;}header.hero h1{font-size:2.3rem}.container{padding:0 1rem}.dash-main{padding:1rem}.panel{padding:1.1rem}.tabbar{gap:.35rem}.tabbar button{font-size:.78rem;padding:.5rem .8rem}}
 
   /* ================= ID VERIFICATION (profile) ================= */
@@ -595,6 +619,28 @@
     </main>
   </div>
 </div>
+
+
+<!-- Friendly, built-in FAQ chatbot. This local prototype does not send messages to an external AI service. -->
+<div id="ccChatPanel" class="cc-chat-panel hidden" role="dialog" aria-label="CareerConnect Assistant" aria-modal="false">
+  <div class="cc-chat-head">
+    <div><strong>💬 CareerConnect Assistant</strong><small>Here to help you find your next step</small></div>
+    <button type="button" class="cc-chat-close" onclick="toggleCareerChat(false)" aria-label="Close chat">×</button>
+  </div>
+  <div id="ccChatMessages" class="cc-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
+  <div class="cc-chat-quick" id="ccChatQuick">
+    <button type="button" onclick="sendCareerQuick('How do I get started?')">Get started</button>
+    <button type="button" onclick="sendCareerQuick('How do I upload my qualification?')">Upload qualification</button>
+    <button type="button" onclick="sendCareerQuick('How do matches work?')">My matches</button>
+    <button type="button" onclick="sendCareerQuick('How do I apply for a job?')">Applications</button>
+  </div>
+  <form class="cc-chat-compose" onsubmit="sendCareerChat(event)">
+    <input id="ccChatInput" type="text" maxlength="500" placeholder="Type your question…" autocomplete="off" aria-label="Type your question" required>
+    <button type="submit">Send</button>
+  </form>
+  <div class="cc-chat-note">Friendly help for using CareerConnect SA</div>
+</div>
+<button type="button" class="cc-chat-launcher" id="ccChatLauncher" onclick="toggleCareerChat()" aria-controls="ccChatPanel" aria-expanded="false"><span aria-hidden="true">💬</span> Ask us</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -1514,6 +1560,55 @@ function refreshBizVacancies(){
     `;
     list.appendChild(row);
   });
+}
+
+
+/* ---------- friendly local chatbot ---------- */
+let careerChatWelcomed = false;
+function toggleCareerChat(forceOpen){
+  const panel=document.getElementById('ccChatPanel');
+  const launcher=document.getElementById('ccChatLauncher');
+  if(!panel||!launcher) return;
+  const shouldOpen=typeof forceOpen==='boolean'?forceOpen:panel.classList.contains('hidden');
+  panel.classList.toggle('hidden',!shouldOpen);
+  launcher.setAttribute('aria-expanded',String(shouldOpen));
+  if(shouldOpen){
+    if(!careerChatWelcomed){
+      addCareerChatMessage('bot',"Hi there! 👋 Welcome to CareerConnect SA. I’m your friendly guide. I can help you create an account, upload your qualification, understand your matches, or track an application. What would you like help with?");
+      careerChatWelcomed=true;
+    }
+    setTimeout(()=>document.getElementById('ccChatInput')?.focus(),50);
+  }
+}
+function addCareerChatMessage(who,text){
+  const log=document.getElementById('ccChatMessages'); if(!log) return;
+  const msg=document.createElement('div'); msg.className='cc-chat-msg '+(who==='user'?'user':'bot'); msg.textContent=text;
+  log.appendChild(msg); log.scrollTop=log.scrollHeight;
+}
+function sendCareerQuick(text){
+  addCareerChatMessage('user',text);
+  addCareerChatMessage('bot',careerChatReply(text));
+}
+function sendCareerChat(event){
+  event.preventDefault();
+  const input=document.getElementById('ccChatInput'); const text=(input.value||'').trim();
+  if(!text) return;
+  addCareerChatMessage('user',text); input.value='';
+  addCareerChatMessage('bot',careerChatReply(text));
+}
+function careerChatReply(raw){
+  const q=String(raw||'').toLowerCase();
+  if(/hello|hi|hey|good morning|good afternoon|good evening/.test(q)) return "Hi! 😊 Glad you're here. Are you looking for a job, exploring study options, or registering as an employer? You can ask me anything about using the website.";
+  if(/register|sign up|create account|get started|new account/.test(q)) return "Getting started is easy! Click ‘Get Started — It’s Free’ or ‘Sign Up’ at the top, choose whether you’re a candidate or an employer, then complete the form. If you already have an account, choose Log In.";
+  if(/log ?in|password|forgot/.test(q)) return "To access your account, click ‘Log In’ in the top navigation or hero section and enter your email and password. This demo currently doesn’t include password reset emails, so don’t use a real or sensitive password.";
+  if(/upload|document|qualification|certificate|matric|grade 12|cv|results/.test(q)) return "To upload your qualification, create or log in to a candidate account, open the Upload Documents area, choose your file, and follow the consent prompt. You need at least one uploaded document before you can find matches. Use a readable PDF or supported document/image file.";
+  if(/match|percentage|score|chance|recommend|opportunit/.test(q)) return "Your matches are suggested using the qualification and career field in your profile, plus readable text from your uploaded document when available. The percentage is an estimated profile-fit score—not a guaranteed chance of being hired or admitted. Always check the opportunity’s official requirements.";
+  if(/apply|application|employer feedback|status|accepted|declined|pending/.test(q)) return "Open your matching opportunities and choose Apply on a vacancy posted by a company. You can check application status and employer feedback in your candidate profile. Employers can review applications and share feedback through their company area.";
+  if(/company|employer|vacancy|post a job|job listing/.test(q)) return "If you’re an employer, create an account and choose the employer/company role. In the company area, you can post a vacancy, view applicants, update application status, and leave feedback. This standalone demo stores data in this browser, so it isn’t yet a shared live service between different devices.";
+  if(/email|notification|notify/.test(q)) return "The prototype shows notifications inside the website when available. Actual email delivery needs a secure backend and email provider; this HTML-only demo can’t send real emails by itself.";
+  if(/contact|human|support|help/.test(q)) return "I can help with common CareerConnect SA questions here. For an issue specific to your account, please describe what page you’re on and what you see. Avoid sharing passwords, ID numbers, or other sensitive information in chat.";
+  if(/thank|thanks|thx/.test(q)) return "You’re very welcome! 😊 I’m cheering you on. If you tell me what you’re trying to do, I’ll point you in the right direction.";
+  return "Thanks for your question! 😊 I can help with registration, uploading qualifications, finding matches, application statuses, employer vacancies, and notifications. Could you tell me a little more or choose one of the suggested topics? If it’s a very specific question, this built-in assistant may not know the answer yet.";
 }
 
 /* ---------- init ---------- */
