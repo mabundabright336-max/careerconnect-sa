@@ -1,0 +1,1273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CareerConnect SA — Career & Job Matching Platform</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --indigo:#4F46E5; --violet:#7C3AED; --emerald:#10B981; --emerald-dark:#059669;
+    --amber:#F59E0B; --amber-dark:#D97706;
+    --ink:#1e293b; --ink-soft:#475569; --line:#e2e8f0;
+    --bg:#f8fafc; --white:#ffffff;
+    --radius:14px;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{font-family:'Inter',sans-serif;color:var(--ink);line-height:1.65;background:var(--bg);}
+  h1,h2,h3,h4{font-family:'Poppins',sans-serif;}
+  a{color:inherit;}
+  .hidden{display:none !important;}
+  button{font-family:'Inter',sans-serif;cursor:pointer;}
+
+  /* ---------- shared ---------- */
+  .btn{display:inline-flex;align-items:center;justify-content:center;gap:.5rem;
+    background:var(--emerald);color:#fff;padding:.9rem 1.8rem;border-radius:10px;
+    text-decoration:none;font-weight:600;border:none;font-size:.95rem;transition:transform .15s ease, background .15s ease;}
+  .btn:hover{background:var(--emerald-dark);transform:translateY(-1px);}
+  .btn-outline{background:transparent;border:1.5px solid #fff;color:#fff;}
+  .btn-outline:hover{background:rgba(255,255,255,.15);}
+  .btn-ghost{background:var(--line);color:var(--ink);}
+  .btn-ghost:hover{background:#cbd5e1;}
+  .btn-sm{padding:.55rem 1.1rem;font-size:.85rem;}
+  .btn:disabled{opacity:.55;cursor:not-allowed;transform:none;}
+  .pill{display:inline-block;padding:.25rem .7rem;border-radius:999px;font-size:.72rem;font-weight:700;letter-spacing:.02em;text-transform:uppercase;}
+  .pill-amber{background:#FEF3C7;color:#92400E;}
+  .pill-emerald{background:#D1FAE5;color:#065F46;}
+  .pill-indigo{background:#E0E7FF;color:#3730A3;}
+  .container{max-width:1140px;margin:auto;padding:0 2rem;}
+
+  /* ================= LANDING ================= */
+  header.hero{background:linear-gradient(135deg,var(--indigo) 0%, var(--violet) 100%);color:#fff;padding:5.5rem 2rem 6rem;text-align:center;position:relative;overflow:hidden;}
+  header.hero::after{content:"";position:absolute;inset:0;background:radial-gradient(circle at 80% 20%, rgba(245,158,11,.25), transparent 45%);}
+  header.hero .eyebrow{position:relative;display:inline-block;background:rgba(255,255,255,.15);padding:.4rem 1rem;border-radius:999px;font-size:.8rem;font-weight:600;letter-spacing:.03em;margin-bottom:1.2rem;}
+  header.hero h1{position:relative;font-size:3.2rem;font-weight:800;margin-bottom:1rem;}
+  header.hero p{position:relative;font-size:1.2rem;opacity:.92;max-width:640px;margin:0 auto 2rem;}
+  header.hero .hero-actions{position:relative;display:flex;gap:1rem;justify-content:center;flex-wrap:wrap;}
+
+  nav.topnav{background:#fff;box-shadow:0 2px 10px rgba(0,0,0,.06);padding:1rem;display:flex;justify-content:center;align-items:center;gap:2rem;position:sticky;top:0;z-index:50;flex-wrap:wrap;}
+  nav.topnav a{text-decoration:none;color:var(--indigo);font-weight:600;font-size:.92rem;}
+  nav.topnav .nav-actions{display:flex;gap:.6rem;margin-left:1rem;}
+
+  section{margin-bottom:4rem;}
+  .section-pad{padding:4rem 0;}
+  h2.section-title{color:var(--indigo);font-size:2rem;font-weight:700;margin-bottom:1.5rem;border-left:4px solid var(--emerald);padding-left:1rem;}
+
+  .grid-3{display:grid;grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:1.5rem;}
+  .card{background:#fff;padding:1.6rem;border-radius:var(--radius);border-top:3px solid var(--indigo);box-shadow:0 1px 3px rgba(0,0,0,.04);}
+  .features{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:1rem;}
+  .feature-item{background:#EEF2FF;padding:1.1rem 1.2rem;border-radius:10px;font-weight:600;display:flex;gap:.7rem;align-items:flex-start;}
+  .feature-item .ico{font-size:1.2rem;}
+
+  /* journey / signature element */
+  .journey{display:flex;justify-content:space-between;align-items:flex-start;position:relative;margin-top:2.5rem;flex-wrap:wrap;gap:1.5rem;}
+  .journey::before{content:"";position:absolute;top:26px;left:6%;right:6%;height:2px;background:repeating-linear-gradient(90deg,var(--line) 0 8px, transparent 8px 14px);z-index:0;}
+  .journey-step{position:relative;z-index:1;flex:1;min-width:150px;text-align:center;}
+  .journey-step .dot{width:52px;height:52px;border-radius:50%;background:#fff;border:2px solid var(--indigo);display:flex;align-items:center;justify-content:center;font-size:1.3rem;margin:0 auto .8rem;box-shadow:0 2px 6px rgba(0,0,0,.06);}
+  .journey-step h4{font-size:.95rem;margin-bottom:.3rem;}
+  .journey-step p{font-size:.82rem;color:var(--ink-soft);}
+
+  footer.site-footer{background:var(--ink);color:#fff;text-align:center;padding:2rem;font-size:.9rem;}
+
+  /* ================= AUTH ================= */
+  .auth-wrap{min-height:100vh;display:flex;align-items:center;justify-content:center;background:linear-gradient(135deg,var(--indigo) 0%, var(--violet) 100%);padding:2rem;}
+  .auth-card{background:#fff;border-radius:18px;max-width:940px;width:100%;display:grid;grid-template-columns:1fr 1fr;overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.25);}
+  .auth-side{background:linear-gradient(160deg,var(--indigo),var(--violet));color:#fff;padding:3rem 2.2rem;display:flex;flex-direction:column;justify-content:center;}
+  .auth-side h3{font-size:1.6rem;margin-bottom:1rem;}
+  .auth-side ul{list-style:none;display:flex;flex-direction:column;gap:.8rem;font-size:.92rem;opacity:.95;}
+  .auth-side li::before{content:"✓  ";font-weight:700;color:var(--amber);}
+  .auth-main{padding:3rem 2.4rem;}
+  .auth-tabs{display:flex;gap:1.5rem;margin-bottom:1.8rem;border-bottom:1px solid var(--line);}
+  .auth-tab{padding-bottom:.8rem;font-weight:700;color:#94a3b8;border-bottom:2px solid transparent;background:none;border-top:none;border-left:none;border-right:none;font-size:1rem;}
+  .auth-tab.active{color:var(--indigo);border-bottom-color:var(--indigo);}
+  .field{margin-bottom:1.1rem;}
+  .field label{display:block;font-size:.83rem;font-weight:600;color:var(--ink-soft);margin-bottom:.35rem;}
+  .field input,.field select{width:100%;padding:.8rem .9rem;border:1.5px solid var(--line);border-radius:9px;font-size:.92rem;font-family:'Inter',sans-serif;}
+  .field input:focus,.field select:focus{outline:none;border-color:var(--indigo);}
+  .form-note{font-size:.8rem;color:var(--ink-soft);margin-top:1rem;}
+  .form-error{background:#FEF2F2;color:#B91C1C;padding:.7rem .9rem;border-radius:8px;font-size:.85rem;margin-bottom:1rem;display:none;}
+  @media (max-width:760px){.auth-card{grid-template-columns:1fr;}.auth-side{display:none;}}
+
+  /* ================= DASHBOARD ================= */
+  .dash{display:grid;grid-template-columns:250px 1fr;min-height:100vh;}
+  .dash-side{background:var(--ink);color:#fff;padding:1.6rem 1.2rem;display:flex;flex-direction:column;}
+  .dash-brand{font-family:'Poppins',sans-serif;font-weight:800;font-size:1.15rem;margin-bottom:.2rem;}
+  .dash-brand span{color:var(--amber);}
+  .dash-user{font-size:.78rem;color:#94a3b8;margin-bottom:2rem;}
+  .dash-nav{display:flex;flex-direction:column;gap:.3rem;flex:1;}
+  .dash-nav button{text-align:left;background:none;border:none;color:#cbd5e1;padding:.75rem .9rem;border-radius:9px;font-size:.92rem;font-weight:600;display:flex;align-items:center;gap:.7rem;}
+  .dash-nav button:hover{background:rgba(255,255,255,.06);}
+  .dash-nav button.active{background:var(--indigo);color:#fff;}
+  .dash-logout{margin-top:auto;background:none;border:1px solid #334155;color:#94a3b8;padding:.7rem;border-radius:9px;font-size:.85rem;}
+  .dash-logout:hover{border-color:#64748b;color:#fff;}
+
+  .dash-main{padding:2.4rem 2.8rem;max-width:1000px;}
+  .dash-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:2rem;flex-wrap:wrap;gap:1rem;}
+  .dash-header h2{font-size:1.7rem;}
+  .dash-header p{color:var(--ink-soft);font-size:.92rem;margin-top:.3rem;}
+
+  .stat-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:1.2rem;margin-bottom:2.2rem;}
+  .stat-card{background:#fff;border-radius:var(--radius);padding:1.3rem 1.4rem;border:1px solid var(--line);}
+  .stat-card .num{font-family:'Poppins',sans-serif;font-size:1.8rem;font-weight:700;color:var(--indigo);}
+  .stat-card .label{font-size:.82rem;color:var(--ink-soft);margin-top:.2rem;}
+
+  .panel{background:#fff;border:1px solid var(--line);border-radius:var(--radius);padding:1.8rem;margin-bottom:1.6rem;}
+  .panel h3{font-size:1.15rem;margin-bottom:1.1rem;}
+
+  .upload-box{border:2px dashed #c7d2fe;background:#F5F7FF;border-radius:12px;padding:2rem;text-align:center;}
+  .upload-box input[type=file]{display:block;margin:1rem auto 0;}
+  .upload-list{margin-top:1.2rem;display:flex;flex-direction:column;gap:.6rem;}
+  .upload-item{display:flex;justify-content:space-between;align-items:center;background:var(--bg);padding:.7rem 1rem;border-radius:8px;font-size:.87rem;}
+
+  .tabbar{display:flex;gap:.5rem;margin-bottom:1.4rem;flex-wrap:wrap;}
+  .tabbar button{background:var(--bg);border:1px solid var(--line);padding:.55rem 1.1rem;border-radius:999px;font-size:.85rem;font-weight:600;color:var(--ink-soft);}
+  .tabbar button.active{background:var(--indigo);color:#fff;border-color:var(--indigo);}
+
+  .match-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:1.2rem;}
+  .match-card{border:1px solid var(--line);border-radius:12px;padding:1.2rem;position:relative;background:#fff;}
+  .match-card .score{position:absolute;top:1rem;right:1rem;width:44px;height:44px;border-radius:50%;background:conic-gradient(var(--amber) calc(var(--pct)*1%), #eef2f7 0);display:flex;align-items:center;justify-content:center;font-size:.72rem;font-weight:800;color:var(--amber-dark);}
+  .match-card .score::before{content:attr(data-pct)"%";background:#fff;border-radius:50%;width:34px;height:34px;display:flex;align-items:center;justify-content:center;}
+  .match-card h4{font-size:1rem;margin:.2rem 2.6rem .3rem 0;}
+  .match-card .sub{font-size:.8rem;color:var(--ink-soft);margin-bottom:.7rem;}
+  .match-card .meta{font-size:.78rem;color:var(--ink-soft);margin-bottom:1rem;display:flex;flex-wrap:wrap;gap:.4rem;}
+
+  .app-row{display:flex;justify-content:space-between;align-items:center;padding:.9rem 0;border-bottom:1px solid var(--line);gap:1rem;flex-wrap:wrap;}
+  .app-row:last-child{border-bottom:none;}
+  .app-row .name{font-weight:700;font-size:.92rem;}
+  .app-row .type{font-size:.78rem;color:var(--ink-soft);}
+  .status{font-size:.75rem;font-weight:700;padding:.3rem .7rem;border-radius:999px;}
+  .status-pending{background:#FEF3C7;color:#92400E;}
+
+  .empty{text-align:center;padding:3rem 1rem;color:var(--ink-soft);}
+  .empty .ico{font-size:2.4rem;margin-bottom:.8rem;}
+
+  /* ================= BUSINESS PAGE ================= */
+  .field textarea{width:100%;padding:.8rem .9rem;border:1.5px solid var(--line);border-radius:9px;font-size:.92rem;font-family:'Inter',sans-serif;resize:vertical;min-height:90px;}
+  .field textarea:focus{outline:none;border-color:var(--indigo);}
+  .form-row{display:grid;grid-template-columns:1fr 1fr;gap:1rem;}
+  @media (max-width:640px){.form-row{grid-template-columns:1fr;}}
+  .badge{margin-left:auto;background:var(--amber);color:var(--ink);font-size:.7rem;font-weight:800;border-radius:999px;padding:.05rem .55rem;}
+  .status-accepted{background:#D1FAE5;color:#065F46;}
+  .status-declined{background:#FEE2E2;color:#B91C1C;}
+  .btn-danger{background:#FEE2E2;color:#B91C1C;}
+  .btn-danger:hover{background:#FECACA;}
+  .biz-app{border:1px solid var(--line);border-radius:12px;padding:1.2rem 1.3rem;background:#fff;margin-bottom:1rem;}
+  .biz-app-top{display:flex;justify-content:space-between;align-items:flex-start;gap:1rem;flex-wrap:wrap;}
+  .biz-app .name{font-weight:700;}
+  .biz-app .type{font-size:.8rem;color:var(--ink-soft);}
+  .biz-app-body{margin:.9rem 0 1rem;font-size:.86rem;color:var(--ink-soft);display:flex;flex-direction:column;gap:.35rem;}
+  .biz-app-body b{color:var(--ink);}
+  .biz-app-actions{display:flex;gap:.6rem;flex-wrap:wrap;}
+  .match-card .pill{margin-bottom:.4rem;}
+  .notice{padding:.9rem 1.1rem;border-radius:10px;font-size:.88rem;margin-bottom:1.4rem;line-height:1.5;}
+  .notice-pending{background:#FEF3C7;color:#92400E;}
+  .notice-rejected{background:#FEE2E2;color:#B91C1C;}
+  .notice-verified{background:#D1FAE5;color:#065F46;}
+
+
+  @media (max-width:820px){
+    .dash{grid-template-columns:1fr;}
+    .dash-side{flex-direction:row;overflow-x:auto;align-items:center;}
+    .dash-nav{flex-direction:row;}
+    .dash-logout{margin-top:0;}
+    .dash-main{padding:1.6rem;}
+  }
+
+  .live-note{background:#EEF2FF;color:#3730A3;padding:.9rem 1rem;border-radius:10px;font-size:.84rem;margin-bottom:1rem;}
+  .match-card .source{font-size:.75rem;color:var(--ink-soft);margin:.5rem 0 .8rem;}
+  .match-card a.btn{display:inline-flex;}
+  #parseStatus.error{color:#b91c1c;font-weight:600;} #parseStatus.success{color:#047857;font-weight:600;}
+  @media(max-width:640px){header.hero{padding:3.5rem 1.2rem;}header.hero h1{font-size:2.3rem}.container{padding:0 1rem}.dash-main{padding:1rem}.panel{padding:1.1rem}.tabbar{gap:.35rem}.tabbar button{font-size:.78rem;padding:.5rem .8rem}}
+</style>
+</head>
+<body>
+
+<!-- ============================================================ -->
+<!-- VIEW 1: LANDING PAGE -->
+<!-- ============================================================ -->
+<div id="view-landing">
+  <header class="hero">
+    <span class="eyebrow">South Africa · Education meets Employment</span>
+    <h1>CareerConnect SA</h1>
+    <p>Upload your results, certificates or CV — we'll match you to real universities, courses, companies and learnerships you actually qualify for.</p>
+    <div class="hero-actions">
+      <button class="btn" onclick="goAuth('register')">Get Started — It's Free</button>
+      <button class="btn btn-outline" onclick="goAuth('login')">Log In</button>
+    </div>
+  </header>
+
+  <nav class="topnav">
+    <a href="#about">About</a>
+    <a href="#solution">Solution</a>
+    <a href="#features">Features</a>
+    <a href="#benefits">Benefits</a>
+    <div class="nav-actions">
+      <button class="btn btn-sm btn-ghost" onclick="goAuth('login')">Log In</button>
+      <button class="btn btn-sm" onclick="goAuth('register')">Sign Up</button>
+    </div>
+  </nav>
+
+  <div class="container">
+    <section id="about" class="section-pad">
+      <h2 class="section-title">Background & Problem</h2>
+      <p>Many people struggle to find jobs that match their qualifications. Grade 12 learners often don't know which universities or courses they qualify for, and job seekers spend hours searching scattered websites for vacancies.</p>
+      <div class="grid-3" style="margin-top:2rem;">
+        <div class="card"><b>High Youth Unemployment</b><p style="margin-top:.5rem;font-size:.88rem;color:var(--ink-soft);">Thousands of qualified young people can't find their first opportunity.</p></div>
+        <div class="card"><b>No Career Guidance</b><p style="margin-top:.5rem;font-size:.88rem;color:var(--ink-soft);">Few learners get personalised advice on what they qualify for.</p></div>
+        <div class="card"><b>Scattered Opportunities</b><p style="margin-top:.5rem;font-size:.88rem;color:var(--ink-soft);">Jobs, learnerships and courses live on dozens of separate sites.</p></div>
+      </div>
+    </section>
+
+    <section id="solution">
+      <h2 class="section-title">Our Solution</h2>
+      <p>CareerConnect SA is a web platform that helps users find education and employment opportunities based on their actual qualifications. Upload your Grade 12 results, certificates, diplomas or degree — the system recommends universities, courses, careers, internships, learnerships and jobs that match.</p>
+
+      <div class="journey">
+        <div class="journey-step"><div class="dot">👤</div><h4>Create a profile</h4><p>Register in under a minute</p></div>
+        <div class="journey-step"><div class="dot">📄</div><h4>Upload documents</h4><p>Results, certificates, diploma, CV</p></div>
+        <div class="journey-step"><div class="dot">🎯</div><h4>Get matched</h4><p>Universities, courses, jobs, learnerships</p></div>
+        <div class="journey-step"><div class="dot">🚀</div><h4>Apply</h4><p>Track every application in one place</p></div>
+      </div>
+    </section>
+
+    <section id="features">
+      <h2 class="section-title">Main Features</h2>
+      <div class="features">
+        <div class="feature-item"><span class="ico">🔐</span> User Registration & Login</div>
+        <div class="feature-item"><span class="ico">📤</span> Upload Qualifications & CVs</div>
+        <div class="feature-item"><span class="ico">🎓</span> University & Course Matching</div>
+        <div class="feature-item"><span class="ico">💼</span> Job, Internship & Learnership Matching</div>
+        <div class="feature-item"><span class="ico">📝</span> Job Application Portal</div>
+        <div class="feature-item"><span class="ico">🏢</span> Company Vacancy Postings</div>
+      </div>
+    </section>
+
+    <section id="benefits">
+      <h2 class="section-title">Benefits</h2>
+      <div class="grid-3">
+        <div class="card"><h3>For Students</h3><p style="margin-top:.5rem;">Discover universities & courses you qualify for and get guided career direction.</p></div>
+        <div class="card"><h3>For Job Seekers</h3><p style="margin-top:.5rem;">Find matching jobs and learnerships, and apply without leaving the platform.</p></div>
+        <div class="card"><h3>For Companies</h3><p style="margin-top:.5rem;">Advertise vacancies and reach candidates already matched to the role.</p></div>
+      </div>
+    </section>
+
+    <section id="contact">
+      <h2 class="section-title">Conclusion</h2>
+      <p>CareerConnect SA bridges the gap between education and employment. By matching qualifications with opportunities, it helps students, job seekers and employers achieve their goals more efficiently.</p>
+      <button class="btn" style="margin-top:1.5rem;" onclick="goAuth('register')">Create Your Free Profile</button>
+    </section>
+  </div>
+
+  <footer class="site-footer">
+    <p>© 2026 CareerConnect SA. Bridging Education & Employment.</p>
+  </footer>
+</div>
+
+<!-- ============================================================ -->
+<!-- VIEW 2: LOGIN / REGISTER -->
+<!-- ============================================================ -->
+<div id="view-auth" class="hidden">
+  <div class="auth-wrap">
+    <div class="auth-card">
+      <div class="auth-side">
+        <h3>Your next opportunity starts with your qualifications.</h3>
+        <ul>
+          <li>Personalised university & course matches</li>
+          <li>Jobs, internships & learnerships in one place</li>
+          <li>Track every application from your dashboard</li>
+          <li>Free for students and job seekers</li>
+        </ul>
+      </div>
+      <div class="auth-main">
+        <div style="margin-bottom:1.2rem;">
+          <a href="#" onclick="goLanding();return false;" style="font-size:.85rem;color:var(--ink-soft);text-decoration:none;">&larr; Back to home</a>
+        </div>
+        <div class="auth-tabs">
+          <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Log In</button>
+          <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Create Account</button>
+        </div>
+
+        <div class="form-error" id="authError"></div>
+
+        <!-- LOGIN FORM -->
+        <form id="loginForm" onsubmit="return handleLogin(event)">
+          <div class="field"><label>Email Address</label><input type="email" id="loginEmail" required placeholder="you@example.com"></div>
+          <div class="field"><label>Password</label><input type="password" id="loginPassword" required placeholder="••••••••"></div>
+          <button type="submit" class="btn" style="width:100%;">Log In</button>
+          <p class="form-note">No account yet? <a href="#" onclick="switchAuthTab('register');return false;" style="color:var(--indigo);font-weight:600;">Create one</a>. Demo tip: register first — no data is pre-loaded.</p>
+        </form>
+
+        <!-- REGISTER FORM -->
+        <form id="registerForm" class="hidden" onsubmit="return handleRegister(event)">
+          <div class="field"><label>Full Name</label><input type="text" id="regName" required placeholder="Thandiwe Nkosi"></div>
+          <div class="field"><label>Email Address</label><input type="email" id="regEmail" required placeholder="you@example.com"></div>
+          <div class="field"><label>Password</label><input type="password" id="regPassword" required placeholder="Create a password"></div>
+          <div class="field">
+            <label>I am a...</label>
+            <select id="regRole" required onchange="toggleCompanyField()">
+              <option value="">Select one</option>
+              <option value="Grade 12 Learner">Grade 12 Learner</option>
+              <option value="TVET Student/Graduate">TVET Student/Graduate</option>
+              <option value="University Student/Graduate">University Student/Graduate</option>
+              <option value="Job Seeker">Job Seeker</option>
+              <option value="Employer/Company">Employer / Company</option>
+            </select>
+          </div>
+          <div class="hidden" id="regCompanyField">
+            <div class="field"><label>Company Name</label><input type="text" id="regCompany" placeholder="Acme (Pty) Ltd"></div>
+            <div class="field"><label>Company Registration Number</label><input type="text" id="regRegNo" placeholder="2015/123456/07">
+              <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">Your CIPC registration number. We verify it against the company register before you can post vacancies.</div>
+            </div>
+          </div>
+          <button type="submit" class="btn" style="width:100%;">Create Account</button>
+          <p class="form-note">Already have an account? <a href="#" onclick="switchAuthTab('login');return false;" style="color:var(--indigo);font-weight:600;">Log in</a></p>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- VIEW 3: DASHBOARD -->
+<!-- ============================================================ -->
+<div id="view-dashboard" class="hidden">
+  <div class="dash">
+    <aside class="dash-side">
+      <div class="dash-brand">Career<span>Connect</span> SA</div>
+      <div class="dash-user" id="dashUserLine">—</div>
+      <nav class="dash-nav">
+        <button data-page="overview" onclick="showDashPage('overview')" class="active">🏠 Overview</button>
+        <button data-page="profile" onclick="showDashPage('profile')">👤 My Profile</button>
+        <button data-page="upload" onclick="showDashPage('upload')">📤 Upload Documents</button>
+        <button data-page="matches" onclick="showDashPage('matches')">🎯 Matches</button>
+        <button data-page="applications" onclick="showDashPage('applications')">📋 Applications</button>
+      </nav>
+      <button class="dash-logout" onclick="handleLogout()">Log Out</button>
+    </aside>
+
+    <main class="dash-main">
+
+      <!-- OVERVIEW -->
+      <div class="dash-page" id="page-overview">
+        <div class="dash-header">
+          <div><h2 id="overviewGreeting">Welcome back</h2><p>Here's where your career journey stands today.</p></div>
+        </div>
+        <div class="stat-row">
+          <div class="stat-card"><div class="num" id="statDocs">0</div><div class="label">Documents uploaded</div></div>
+          <div class="stat-card"><div class="num" id="statMatches">0</div><div class="label">Total matches found</div></div>
+          <div class="stat-card"><div class="num" id="statApps">0</div><div class="label">Applications submitted</div></div>
+        </div>
+        <div class="panel" id="overviewNudge">
+          <h3>Next step</h3>
+          <p id="overviewNudgeText">Upload your Grade 12 results, certificate, diploma or CV to unlock your matches.</p>
+          <button class="btn" style="margin-top:1rem;" onclick="showDashPage('upload')">Upload Documents</button>
+        </div>
+      </div>
+
+      <!-- PROFILE -->
+      <div class="dash-page hidden" id="page-profile">
+        <div class="dash-header"><div><h2>My Profile</h2><p>Keep your details up to date so matches stay accurate.</p></div></div>
+        <div class="panel">
+          <h3>Personal Details</h3>
+          <div class="field"><label>Full Name</label><input type="text" id="profName"></div>
+          <div class="field"><label>Email Address</label><input type="email" id="profEmail" disabled></div>
+          <div class="field">
+            <label>I am a...</label>
+            <select id="profRole">
+              <option value="Grade 12 Learner">Grade 12 Learner</option>
+              <option value="TVET Student/Graduate">TVET Student/Graduate</option>
+              <option value="University Student/Graduate">University Student/Graduate</option>
+              <option value="Job Seeker">Job Seeker</option>
+            </select>
+          </div>
+          <button class="btn" onclick="saveProfile()">Save Changes</button>
+          <span id="profileSaved" class="hidden" style="margin-left:1rem;color:var(--emerald-dark);font-weight:600;font-size:.88rem;">Saved ✓</span>
+        </div>
+      </div>
+
+      <!-- UPLOAD -->
+      <div class="dash-page hidden" id="page-upload">
+        <div class="dash-header"><div><h2>Upload Your Qualifications</h2><p>Tell us what you have — we'll match it to real opportunities.</p></div></div>
+
+        <div class="panel">
+          <h3>Step 1: Your Qualification</h3>
+          <div class="field">
+            <label>Highest Qualification</label>
+            <select id="uploadQualLevel">
+              <option value="Grade 12">Grade 12 Results</option>
+              <option value="Certificate">Certificate</option>
+              <option value="Diploma">Diploma</option>
+              <option value="Degree">Degree</option>
+            </select>
+          </div>
+          <div class="field">
+            <label>Field of Interest</label>
+            <select id="uploadField">
+              <option value="Business">Business & Commerce</option>
+              <option value="IT">Information Technology</option>
+              <option value="Engineering">Engineering</option>
+              <option value="Health">Health Sciences</option>
+              <option value="Education">Education</option>
+              <option value="Law">Law</option>
+              <option value="Humanities">Humanities & Social Sciences</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Step 2: Upload File</h3>
+          <div class="upload-box">
+            <p><b>Drop or select</b> your Grade 12 results, certificate, diploma, degree or CV</p>
+            <input type="file" id="uploadFile" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/png,image/jpeg,image/webp">
+            <label style="display:flex;align-items:flex-start;gap:.55rem;margin-top:1rem;font-size:.88rem;">
+              <input type="checkbox" id="docConsent" style="margin-top:.35rem;">
+              <span>I consent to processing this document in my browser to extract qualification details. The standalone demo does not send the file to a server.</span>
+            </label>
+            <p id="parseStatus" class="form-note" role="status" aria-live="polite" style="margin-top:.75rem;"></p>
+            <div id="extractedPreview" class="hidden" style="margin-top:1rem;padding:1rem;border:1px solid var(--line);border-radius:10px;background:#f8fafc;">
+              <strong>Extracted document text preview</strong>
+              <p id="extractedTextPreview" style="white-space:pre-wrap;max-height:220px;overflow:auto;margin-top:.5rem;font-size:.85rem;"></p>
+            </div>
+            <p style="font-size:.78rem;color:var(--ink-soft);margin-top:.8rem;">Demo mode: files are processed in your browser and are not stored on a server.</p>
+          </div>
+          <div class="upload-list" id="uploadedList"></div>
+        </div>
+
+        <button class="btn" type="button" id="findMatchesBtn" onclick="runMatching()">Find My Matches</button>
+        <p class="form-note" style="margin-top:.6rem;">Select a document and tick the consent box first. You can also match manually by choosing your qualification and field.</p>
+      </div>
+
+      <!-- MATCHES -->
+      <div class="dash-page hidden" id="page-matches">
+        <div class="dash-header"><div><h2>Your Matches</h2><p id="matchesSubtitle">Based on your uploaded qualifications.</p></div></div>
+        <div id="matchesEmpty" class="empty">
+          <div class="ico">🎯</div>
+          <p>No matches yet. Head to <b>Upload Documents</b> to get matched to universities, courses, companies and learnerships.</p>
+          <button class="btn" style="margin-top:1.2rem;" onclick="showDashPage('upload')">Upload Documents</button>
+        </div>
+        <div id="matchesContent" class="hidden">
+          <div class="tabbar">
+            <button data-cat="universities" onclick="showMatchCat('universities')" class="active">Universities</button>
+            <button data-cat="courses" onclick="showMatchCat('courses')">Courses</button>
+            <button data-cat="companies" onclick="showMatchCat('companies')">Companies & Jobs</button>
+            <button data-cat="learnerships" onclick="showMatchCat('learnerships')">Learnerships</button>
+             <button data-cat="live" onclick="showMatchCat('live')">Live Opportunities ↗</button>
+          </div>
+          <div class="match-grid" id="matchGrid"></div>
+        </div>
+      </div>
+
+      <!-- APPLICATIONS -->
+      <div class="dash-page hidden" id="page-applications">
+        <div class="dash-header"><div><h2>My Applications</h2><p>Everything you've applied for, in one place.</p></div></div>
+        <div class="panel">
+          <div id="applicationsEmpty" class="empty">
+            <div class="ico">📋</div>
+            <p>You haven't applied to anything yet. Once you find a match, hit <b>Apply</b> and it'll show up here.</p>
+          </div>
+          <div id="applicationsList"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<!-- ============================================================ -->
+<!-- VIEW 4: BUSINESS PAGE (employers land here after registering) -->
+<!-- ============================================================ -->
+<div id="view-business" class="hidden">
+  <div class="dash">
+    <aside class="dash-side">
+      <div class="dash-brand">Career<span>Connect</span> SA</div>
+      <div class="dash-user" id="bizUserLine">—</div>
+      <nav class="dash-nav">
+        <button data-bpage="overview" onclick="showBizPage('overview')" class="active">🏠 Overview</button>
+        <button data-bpage="applications" onclick="showBizPage('applications')">📥 Applications <span class="badge hidden" id="bizNavBadge">0</span></button>
+        <button data-bpage="vacancies" onclick="showBizPage('vacancies')">💼 Vacancies</button>
+      </nav>
+      <button class="dash-logout" onclick="handleLogout()">Log Out</button>
+    </aside>
+
+    <main class="dash-main">
+
+      <div id="bizVerifyBanner" class="notice hidden"></div>
+
+      <!-- BUSINESS OVERVIEW -->
+      <div class="biz-page" id="bpage-overview">
+        <div class="dash-header"><div><h2 id="bizGreeting">Welcome</h2><p>Post vacancies and decide on the applications you receive.</p></div></div>
+        <div class="stat-row">
+          <div class="stat-card"><div class="num" id="bStatOpen">0</div><div class="label">Open vacancies</div></div>
+          <div class="stat-card"><div class="num" id="bStatTotal">0</div><div class="label">Applications received</div></div>
+          <div class="stat-card"><div class="num" id="bStatPending">0</div><div class="label">Awaiting your decision</div></div>
+          <div class="stat-card"><div class="num" id="bStatAccepted">0</div><div class="label">Accepted</div></div>
+        </div>
+        <div class="panel">
+          <h3>Next step</h3>
+          <p id="bizNudgeText"></p>
+          <button class="btn" style="margin-top:1rem;" id="bizNudgeBtn">Post a Vacancy</button>
+        </div>
+      </div>
+
+      <!-- BUSINESS APPLICATIONS -->
+      <div class="biz-page hidden" id="bpage-applications">
+        <div class="dash-header"><div><h2>Applications</h2><p>Candidates who applied to your vacancies. Accept or decline each one.</p></div></div>
+        <div class="tabbar" id="bizTabs"></div>
+        <div id="bizAppsEmpty" class="empty hidden"><div class="ico">📥</div><p id="bizAppsEmptyText"></p></div>
+        <div id="bizAppsList"></div>
+        <p class="form-note">Demo mode: applicant documents are listed by file name only — files are not stored.</p>
+      </div>
+
+      <!-- BUSINESS VACANCIES -->
+      <div class="biz-page hidden" id="bpage-vacancies">
+        <div class="dash-header"><div><h2>Vacancies</h2><p>Post a role and it appears in the matches of candidates in that industry.</p></div></div>
+        <div class="panel">
+          <h3>Post a vacancy</h3>
+          <form onsubmit="return postVacancy(event)">
+            <div class="field"><label>Job Title</label><input type="text" id="vacTitle" required placeholder="Junior Software Developer"></div>
+            <div class="form-row">
+              <div class="field"><label>Industry</label>
+                <select id="vacField">
+                <option value="Business">Business & Commerce</option>
+                <option value="IT">Information Technology</option>
+                <option value="Engineering">Engineering</option>
+                <option value="Health">Health Sciences</option>
+                <option value="Education">Education</option>
+                <option value="Law">Law</option>
+                <option value="Humanities">Humanities & Social Sciences</option>
+                </select>
+              </div>
+              <div class="field"><label>Location</label><input type="text" id="vacLocation" required placeholder="Pretoria, GP"></div>
+            </div>
+            <div class="field"><label>Description (optional)</label><textarea id="vacDesc" placeholder="Short summary of the role and requirements"></textarea></div>
+            <button type="submit" class="btn" id="vacSubmit">Post Vacancy</button>
+            <span id="vacLocked" class="hidden" style="margin-left:1rem;color:var(--ink-soft);font-size:.85rem;">Available once your company is verified.</span>
+            <span id="vacPosted" class="hidden" style="margin-left:1rem;color:var(--emerald-dark);font-weight:600;font-size:.88rem;">Posted ✓</span>
+          </form>
+        </div>
+        <div class="panel">
+          <h3>Your vacancies</h3>
+          <div id="bizVacEmpty" class="empty"><div class="ico">💼</div><p>You haven't posted any vacancies yet.</p></div>
+          <div id="bizVacList"></div>
+        </div>
+      </div>
+
+    </main>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+<script>
+/* ======================================================================
+   DATA — sample South African universities, courses, companies, learnerships
+   ====================================================================== */
+const UNIVERSITIES = [
+  {name:"University of Cape Town (UCT)", location:"Cape Town, WC", fields:["Business","IT","Engineering","Health","Law","Humanities"], minLevel:["Grade 12"], apsHint:"Competitive APS, typically 40+"},
+  {name:"University of the Witwatersrand (Wits)", location:"Johannesburg, GP", fields:["Business","IT","Engineering","Health","Law"], minLevel:["Grade 12"], apsHint:"Competitive APS, typically 38+"},
+  {name:"University of Pretoria (UP)", location:"Pretoria, GP", fields:["Business","IT","Engineering","Health","Law","Education"], minLevel:["Grade 12"], apsHint:"APS typically 30-38"},
+  {name:"Stellenbosch University", location:"Stellenbosch, WC", fields:["Business","Engineering","Health","Law","Humanities"], minLevel:["Grade 12"], apsHint:"APS typically 32-40"},
+  {name:"University of Johannesburg (UJ)", location:"Johannesburg, GP", fields:["Business","IT","Engineering","Health","Education"], minLevel:["Grade 12","Certificate"], apsHint:"APS typically 26-34"},
+  {name:"University of KwaZulu-Natal (UKZN)", location:"Durban, KZN", fields:["Business","Health","Law","Humanities","Education"], minLevel:["Grade 12"], apsHint:"APS typically 28-34"},
+  {name:"Nelson Mandela University", location:"Gqeberha, EC", fields:["Business","Engineering","Health","Education","Humanities"], minLevel:["Grade 12"], apsHint:"APS typically 24-30"},
+  {name:"North-West University (NWU)", location:"Potchefstroom, NW", fields:["Business","IT","Education","Law","Humanities"], minLevel:["Grade 12"], apsHint:"APS typically 24-30"},
+  {name:"University of South Africa (UNISA)", location:"Distance / Pretoria, GP", fields:["Business","IT","Education","Law","Humanities"], minLevel:["Grade 12","Certificate","Diploma"], apsHint:"Open distance learning — flexible entry"},
+  {name:"Tshwane University of Technology (TUT)", location:"Pretoria, GP", fields:["IT","Engineering","Business"], minLevel:["Grade 12","Certificate"], apsHint:"Diploma/degree entry, subject requirements apply"},
+  {name:"Cape Peninsula University of Technology (CPUT)", location:"Cape Town, WC", fields:["IT","Engineering","Business","Health"], minLevel:["Grade 12","Certificate"], apsHint:"Diploma/degree entry, subject requirements apply"},
+  {name:"Durban University of Technology (DUT)", location:"Durban, KZN", fields:["IT","Engineering","Business","Health"], minLevel:["Grade 12","Certificate"], apsHint:"Diploma/degree entry, subject requirements apply"},
+];
+
+const COURSES = [
+  {name:"BCom Accounting", field:"Business", level:["Grade 12"], desc:"Foundation for chartered accountancy (CA(SA)) and finance careers."},
+  {name:"BCom Business Management", field:"Business", level:["Grade 12"], desc:"General business, marketing and management fundamentals."},
+  {name:"Higher Certificate in Retail Business Management", field:"Business", level:["Grade 12","Certificate"], desc:"Fast-track entry into retail and operations management."},
+  {name:"BSc Computer Science", field:"IT", level:["Grade 12"], desc:"Software engineering, algorithms and systems design."},
+  {name:"Diploma in Information Technology", field:"IT", level:["Grade 12","Certificate"], desc:"Applied programming, networks and support skills."},
+  {name:"BEng Civil Engineering", field:"Engineering", level:["Grade 12"], desc:"Infrastructure, structures and construction design."},
+  {name:"National Diploma: Electrical Engineering", field:"Engineering", level:["Grade 12","Certificate"], desc:"Power systems, electronics and industrial maintenance."},
+  {name:"MBChB Medicine", field:"Health", level:["Grade 12"], desc:"Undergraduate medical degree — highly competitive entry."},
+  {name:"Diploma in Nursing", field:"Health", level:["Grade 12","Certificate"], desc:"Clinical training toward registered nurse qualification."},
+  {name:"LLB Law", field:"Law", level:["Grade 12"], desc:"Foundational law degree for attorneys and advocates."},
+  {name:"Bachelor of Education (Foundation Phase)", field:"Education", level:["Grade 12"], desc:"Teaching qualification for Grade R-3 classrooms."},
+  {name:"BA Psychology", field:"Humanities", level:["Grade 12"], desc:"Human behaviour, counselling pathways and social sciences."},
+  {name:"Postgraduate Diploma in Business Analysis", field:"Business", level:["Diploma","Degree"], desc:"For diploma/degree holders moving into business analysis roles."},
+  {name:"Advanced Diploma in ICT", field:"IT", level:["Diploma","Degree"], desc:"Progression route for IT diploma holders into specialised systems roles."},
+];
+
+const COMPANIES = [
+  {name:"Standard Bank", industry:"Business", location:"Johannesburg, GP", roles:["Graduate Trainee: Banking", "Junior Financial Analyst"]},
+  {name:"Discovery Ltd", industry:"Business", location:"Sandton, GP", roles:["Actuarial Trainee", "Client Services Consultant"]},
+  {name:"Vodacom", industry:"IT", location:"Midrand, GP", roles:["Junior Software Developer", "IT Support Technician"]},
+  {name:"MTN Group", industry:"IT", location:"Roodepoort, GP", roles:["Network Engineer Graduate", "Data Analyst"]},
+  {name:"Sasol", industry:"Engineering", location:"Secunda, MP", roles:["Process Engineer Trainee", "Artisan: Instrumentation"]},
+  {name:"Eskom", industry:"Engineering", location:"Various, national", roles:["Electrical Engineer Trainee", "Technician: Power Plant"]},
+  {name:"Netcare", industry:"Health", location:"Johannesburg, GP", roles:["Staff Nurse", "Junior Radiographer"]},
+  {name:"Life Healthcare", industry:"Health", location:"Various, national", roles:["Enrolled Nurse", "Pharmacy Assistant"]},
+  {name:"Deloitte Africa", industry:"Business", location:"Johannesburg, GP", roles:["Audit Trainee (SAICA)", "Business Analyst Graduate"]},
+  {name:"Woolworths Holdings", industry:"Business", location:"Cape Town, WC", roles:["Retail Management Trainee", "Supply Chain Graduate"]},
+  {name:"Transnet", industry:"Engineering", location:"Durban, KZN", roles:["Mechanical Engineer Trainee", "Logistics Coordinator"]},
+  {name:"Department of Basic Education", industry:"Education", location:"Various, national", roles:["Intern Teacher", "Curriculum Assistant"]},
+  {name:"Legal Aid South Africa", industry:"Law", location:"Various, national", roles:["Candidate Attorney", "Paralegal"]},
+];
+
+const LEARNERSHIPS = [
+  {name:"MICT SETA: IT Systems Support NQF4", seta:"MICT SETA", field:"IT", stipend:"R3,500 - R4,500 / month", duration:"12 months"},
+  {name:"BANKSETA: Banking Operations Learnership", seta:"BANKSETA", field:"Business", stipend:"R4,000 - R5,000 / month", duration:"12 months"},
+  {name:"merSETA: Electrical Engineering NQF3", seta:"merSETA", field:"Engineering", stipend:"R3,000 - R4,000 / month", duration:"18 months"},
+  {name:"INSETA: Short-Term Insurance Learnership", seta:"INSETA", field:"Business", stipend:"R3,500 / month", duration:"12 months"},
+  {name:"HWSETA: Auxiliary Health Worker Learnership", seta:"HWSETA", field:"Health", stipend:"R3,000 / month", duration:"12 months"},
+  {name:"Services SETA: Legal Secretary Learnership", seta:"Services SETA", field:"Law", stipend:"R3,200 / month", duration:"12 months"},
+  {name:"ETDP SETA: Early Childhood Development Learnership", seta:"ETDP SETA", field:"Education", stipend:"R3,000 / month", duration:"12 months"},
+  {name:"W&RSETA: Retail Operations Learnership", seta:"W&RSETA", field:"Business", stipend:"R3,000 - R3,800 / month", duration:"12 months"},
+];
+
+/* ======================================================================
+   STATE (in-memory demo — resets on page refresh, no backend attached)
+   ====================================================================== */
+let USERS = [];        // {name,email,password,role}
+let CURRENT = null;    // logged in user object
+let PROFILES = {};     // email -> { docs:[], qualLevel, field, matches:{}, applications:[] }
+let pendingAuthTab = 'login';
+let activeMatchCat = 'universities';
+let VACANCIES = [];     // {id,ownerEmail,company,title,field,location,desc,closed,date}
+let vacSeq = 1, appSeq = 1;
+let activeBizFilter = 'Pending';
+
+function emptyProfile(){
+  return { docs:[], qualLevel:null, field:null, matches:null, applications:[], extractedText:'', extractedFile:'' };
+}
+
+/* ---------- navigation between the top-level views ---------- */
+const VIEWS = ['view-landing','view-auth','view-dashboard','view-business'];
+function showView(id){
+  VIEWS.forEach(v=>document.getElementById(v).classList.toggle('hidden', v!==id));
+  window.scrollTo(0,0);
+}
+function goLanding(){ showView('view-landing'); }
+function goAuth(tab){ showView('view-auth'); switchAuthTab(tab || 'login'); }
+function goDashboard(){ showView('view-dashboard'); renderDashboard(); }
+function goBusiness(){ showView('view-business'); renderBusiness(); }
+
+/* employers go to the business page, everyone else to the candidate dashboard */
+function isEmployer(u){ return u.role === 'Employer/Company'; }
+function enterApp(){ if(isEmployer(CURRENT)) goBusiness(); else goDashboard(); }
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
+function switchAuthTab(tab){
+  pendingAuthTab = tab;
+  document.getElementById('tab-login').classList.toggle('active', tab==='login');
+  document.getElementById('tab-register').classList.toggle('active', tab==='register');
+  document.getElementById('loginForm').classList.toggle('hidden', tab!=='login');
+  document.getElementById('registerForm').classList.toggle('hidden', tab!=='register');
+  document.getElementById('authError').style.display = 'none';
+}
+function showAuthError(msg){
+  const el = document.getElementById('authError');
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+/* ---------- auth handlers ---------- */
+function toggleCompanyField(){
+  const isEmp = document.getElementById('regRole').value === 'Employer/Company';
+  document.getElementById('regCompanyField').classList.toggle('hidden', !isEmp);
+}
+
+function handleRegister(e){
+  e.preventDefault();
+  const name = document.getElementById('regName').value.trim();
+  const email = document.getElementById('regEmail').value.trim().toLowerCase();
+  const password = document.getElementById('regPassword').value;
+  const role = document.getElementById('regRole').value;
+  const company = document.getElementById('regCompany').value.trim();
+  const isEmp = role === 'Employer/Company';
+  const regNo = isEmp ? normalizeRegNo(document.getElementById('regRegNo').value) : null;
+
+  if(!role){ showAuthError('Please select what best describes you.'); return false; }
+  if(isEmp && !company){ showAuthError('Please enter your company name.'); return false; }
+  if(isEmp && !regNo){ showAuthError('Enter a valid company registration number in the format 2015/123456/07.'); return false; }
+  if(isEmp && USERS.some(u=>u.regNo===regNo)){ showAuthError('This registration number is already linked to another account.'); return false; }
+  if(USERS.some(u=>u.email===email)){ showAuthError('An account with this email already exists — try logging in.'); return false; }
+
+  const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: ''};
+  USERS.push(user);
+  PROFILES[email] = emptyProfile();
+  CURRENT = user;
+  if(isEmp) startVerification(user);   // employers start as "pending" until the check passes
+  enterApp();                          // employers land on the business page
+  return false;
+}
+
+function handleLogin(e){
+  e.preventDefault();
+  const email = document.getElementById('loginEmail').value.trim().toLowerCase();
+  const password = document.getElementById('loginPassword').value;
+  const user = USERS.find(u=>u.email===email && u.password===password);
+  if(!user){ showAuthError('No matching account found. Check your details, or create a free account.'); return false; }
+  CURRENT = user;
+  enterApp();
+  return false;
+}
+
+function handleLogout(){
+  CURRENT = null;
+  document.getElementById('loginForm').reset();
+  document.getElementById('registerForm').reset();
+  toggleCompanyField();
+  goAuth('login');
+}
+
+/* ---------- dashboard rendering ---------- */
+function renderDashboard(){
+  if(!CURRENT) return;
+  document.getElementById('dashUserLine').textContent = CURRENT.name + ' · ' + CURRENT.role;
+  document.getElementById('overviewGreeting').textContent = 'Welcome back, ' + CURRENT.name.split(' ')[0];
+  document.getElementById('profName').value = CURRENT.name;
+  document.getElementById('profEmail').value = CURRENT.email;
+  document.getElementById('profRole').value = CURRENT.role;
+  showDashPage('overview');
+  refreshOverview();
+  refreshUploadList();
+  refreshApplications();
+}
+
+function showDashPage(page){
+  document.querySelectorAll('.dash-page').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('page-'+page).classList.remove('hidden');
+  document.querySelectorAll('#view-dashboard .dash-nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
+  if(page==='overview') refreshOverview();
+  if(page==='applications') refreshApplications();
+  if(page==='matches') refreshMatchesView();
+}
+
+function saveProfile(){
+  CURRENT.name = document.getElementById('profName').value.trim() || CURRENT.name;
+  CURRENT.role = document.getElementById('profRole').value;
+  document.getElementById('dashUserLine').textContent = CURRENT.name + ' · ' + CURRENT.role;
+  const saved = document.getElementById('profileSaved');
+  saved.classList.remove('hidden');
+  setTimeout(()=>saved.classList.add('hidden'), 2000);
+}
+
+function refreshOverview(){
+  const p = PROFILES[CURRENT.email];
+  document.getElementById('statDocs').textContent = p.docs.length;
+  const totalMatches = p.matches ? ['universities','courses','companies','learnerships','live'].reduce((n,c)=>n+getMatchItems(p,c).length,0) : 0;
+  document.getElementById('statMatches').textContent = totalMatches;
+  document.getElementById('statApps').textContent = p.applications.length;
+
+  const nudge = document.getElementById('overviewNudgeText');
+  if(p.docs.length===0){
+    nudge.textContent = "Upload your Grade 12 results, certificate, diploma or CV to unlock your matches.";
+  } else if(!p.matches){
+    nudge.textContent = "You've uploaded documents — run matching to see your universities, courses, companies and learnerships.";
+  } else {
+    nudge.textContent = "You have " + totalMatches + " matches waiting. Review them and apply to the ones you like.";
+  }
+}
+
+/* ---------- upload & matching ---------- */
+function refreshUploadList(){
+  const p = PROFILES[CURRENT.email];
+  const list = document.getElementById('uploadedList');
+  list.innerHTML = '';
+  p.docs.forEach((d,i)=>{
+    const row = document.createElement('div');
+    row.className = 'upload-item';
+    row.innerHTML = `<span>📄 ${esc(d)}</span><button class="btn btn-sm btn-ghost" onclick="removeDoc(${i})">Remove</button>`;
+    list.appendChild(row);
+  });
+}
+function removeDoc(i){
+  PROFILES[CURRENT.email].docs.splice(i,1);
+  refreshUploadList();
+  refreshOverview();
+}
+
+async function runMatching(){
+  const p = PROFILES[CURRENT.email];
+  const fileInput = document.getElementById('uploadFile');
+  const qualSelect = document.getElementById('uploadQualLevel');
+  const fieldSelect = document.getElementById('uploadField');
+  const status = document.getElementById('parseStatus');
+  if(!CURRENT || !PROFILES[CURRENT.email]){ alert('Please log in or create a candidate account before finding matches.'); goAuth('login'); return; }
+  if(!status){ alert('The document status area is missing. Please refresh the updated website file.'); return; }
+  const file = fileInput.files[0];
+  let extracted = '';
+
+  if(file){
+    if(!document.getElementById('docConsent') || !document.getElementById('docConsent').checked){
+      status.className='form-note error'; status.textContent='Please tick the consent box before processing this document.'; return;
+    }
+    status.className='form-note'; status.textContent='Reading your document in this browser…';
+    try { extracted = await extractDocumentText(file, msg=>status.textContent=msg); }
+    catch(err){ status.className='form-note error'; status.textContent='Could not read this file: '+(err.message||'unsupported or damaged file')+'. You can still choose your qualification and field manually.'; }
+    if(extracted.trim()){
+      p.extractedText = extracted.slice(0,50000); p.extractedFile=file.name;
+      document.getElementById('extractedPreview').classList.remove('hidden');
+      document.getElementById('extractedTextPreview').textContent=extracted.slice(0,6000)+(extracted.length>6000?'…':'');
+      const inferred=inferQualification(extracted);
+      if(inferred){ qualSelect.value=inferred; status.textContent='Document text extracted. Suggested qualification: '+inferred+'. Please confirm the fields below.'; }
+      const inferredField=inferField(extracted);
+      if(inferredField){ fieldSelect.value=inferredField; status.textContent+=' Suggested field: '+fieldLabel(inferredField)+'.'; }
+      status.className='form-note success';
+    } else if(file){ status.className='form-note error'; status.textContent='No readable text was found. If this is a scanned PDF, try uploading the page as an image or check the scan quality.'; }
+    p.docs.push(file.name); fileInput.value='';
+  } else if(p.docs.length===0){
+    status.className='form-note'; status.textContent='No document selected. Matching will use the qualification and field you choose manually.';
+  }
+  refreshUploadList();
+  p.qualLevel=qualSelect.value; p.field=fieldSelect.value;
+  const uni=UNIVERSITIES.filter(u=>u.fields.includes(p.field)&&u.minLevel.includes(p.qualLevel)).map(u=>({...u,pct:matchScore(u.name,p.extractedText)})).sort((a,b)=>b.pct-a.pct);
+  const courses=COURSES.filter(c=>c.field===p.field&&c.level.includes(p.qualLevel)).map(c=>({...c,pct:matchScore(c.name,p.extractedText)})).sort((a,b)=>b.pct-a.pct);
+  // Do not fabricate employers or vacancies. Current opportunities are found through source/portal search links below.
+  const live=buildLiveOpportunityLinks(p.field,p.qualLevel,p.extractedText);
+  const companies=live.filter(x=>/LinkedIn Jobs|Careers24|Indeed South Africa|SAYouth|DPSA public/i.test(x.name));
+  const learnerships=live.filter(x=>/Learnerships and internships|SAYouth/i.test(x.name));
+  p.matches={universities:uni,courses,companies,learnerships,live};
+  refreshOverview(); showDashPage('matches'); showMatchCat('live');
+}
+
+async function extractDocumentText(file, progress){
+  const name=file.name.toLowerCase(), type=file.type;
+  if(name.endsWith('.txt')||type==='text/plain') return await file.text();
+  if(name.endsWith('.docx')||type==='application/vnd.openxmlformats-officedocument.wordprocessingml.document'){
+    if(!window.mammoth) throw new Error('DOCX reader library did not load');
+    const result=await window.mammoth.extractRawText({arrayBuffer:await file.arrayBuffer()}); return result.value||'';
+  }
+  if(name.endsWith('.pdf')||type==='application/pdf'){
+    if(!window.pdfjsLib) throw new Error('PDF reader library did not load');
+    pdfjsLib.GlobalWorkerOptions.workerSrc='https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+    const pdf=await pdfjsLib.getDocument({data:await file.arrayBuffer()}).promise; let text='';
+    for(let i=1;i<=Math.min(pdf.numPages,12);i++){
+      progress(`Extracting text from PDF page ${i} of ${Math.min(pdf.numPages,12)}…`);
+      const page=await pdf.getPage(i), content=await page.getTextContent();
+      text+=content.items.map(x=>x.str).join(' ')+'\n';
+    }
+    if(text.trim().length>40) return text;
+    // OCR first page for a scanned PDF (local browser processing).
+    if(!window.Tesseract) throw new Error('This appears to be a scanned PDF and OCR could not load');
+    progress('Scanned PDF detected. Running OCR on the first page…');
+    const page=await pdf.getPage(1), viewport=page.getViewport({scale:1.7});
+    const canvas=document.createElement('canvas'); canvas.width=viewport.width; canvas.height=viewport.height;
+    await page.render({canvasContext:canvas.getContext('2d'),viewport}).promise;
+    const result=await Tesseract.recognize(canvas,'eng',{logger:m=>{if(m.status==='recognizing text')progress('OCR: '+Math.round((m.progress||0)*100)+'%');}});
+    return result.data.text||'';
+  }
+  if(type.startsWith('image/')||/\.(png|jpe?g|webp)$/i.test(name)){
+    if(!window.Tesseract) throw new Error('Image OCR library did not load');
+    progress('Reading text from image with OCR…');
+    const result=await Tesseract.recognize(file,'eng',{logger:m=>{if(m.status==='recognizing text')progress('OCR: '+Math.round((m.progress||0)*100)+'%');}});
+    return result.data.text||'';
+  }
+  throw new Error('Please upload PDF, DOCX, TXT, PNG, JPG or WEBP');
+}
+function inferQualification(text){
+  const t=text.toLowerCase();
+  if(/grade\s*12|national senior certificate|\bnsc\b|matric|statement of results/.test(t)) return 'Grade 12';
+  if(/advanced diploma|postgraduate diploma|bachelor.?s degree|bsc\b|\bbcom\b|\bba\b|\bbeng\b|honours degree/.test(t)) return 'Degree';
+  if(/national diploma|diploma/.test(t)) return 'Diploma';
+  if(/higher certificate|certificate/.test(t)) return 'Certificate';
+  return null;
+}
+function inferField(text){
+  const t=text.toLowerCase();
+  const scores={Business:(t.match(/accounting|commerce|business|economics|finance|management|marketing/g)||[]).length,IT:(t.match(/computer|information technology|programming|software|network|ict|data science/g)||[]).length,Engineering:(t.match(/engineering|mechanical|electrical|civil|physics|artisan/g)||[]).length,Health:(t.match(/nursing|health|biology|medical|clinical|pharmacy/g)||[]).length,Education:(t.match(/education|teaching|teacher|pedagogy/g)||[]).length,Law:(t.match(/law|legal|llb|attorney|paralegal/g)||[]).length,Humanities:(t.match(/psychology|sociology|humanities|social science|history|languages/g)||[]).length};
+  const best=Object.entries(scores).sort((a,b)=>b[1]-a[1])[0]; return best&&best[1]>0?best[0]:null;
+}
+function matchScore(title, text){
+  if(!text) return 70;
+  const words=String(title+' '+(text||'')).toLowerCase().match(/[a-z]{4,}/g)||[];
+  const titleWords=String(title).toLowerCase().match(/[a-z]{4,}/g)||[];
+  const unique=[...new Set(titleWords)]; const hits=unique.filter(w=>(text.toLowerCase()).includes(w)).length;
+  return Math.max(45,Math.min(95,Math.round(55+(hits/Math.max(unique.length,1))*40)));
+}
+function buildLiveOpportunityLinks(field, qual, text){
+  const keywords=({Business:'business commerce finance accounting',IT:'information technology software support',Engineering:'engineering artisan technician',Health:'healthcare nursing',Education:'education teaching',Law:'law legal',Humanities:'humanities social sciences'})[field]||field;
+  const q=encodeURIComponent((keywords+' '+qual+' South Africa vacancies').trim());
+  const learnQ=encodeURIComponent((keywords+' learnership internship South Africa 2026').trim());
+  const courseQ=encodeURIComponent((keywords+' South Africa university admission requirements '+qual).trim());
+  return [
+    {name:'SAYouth.mobi opportunities',source:'SAYouth · youth jobs and opportunities',detail:'Search current opportunities on the official SAYouth platform. Availability and eligibility are confirmed on the listing.',url:'https://sayouth.mobi/'},
+    {name:'DPSA public service vacancies',source:'Department of Public Service and Administration',detail:'Check official public-service vacancy circulars and verify closing dates.',url:'https://www.dpsa.gov.za/newsroom/psvc/'},
+    {name:'LinkedIn Jobs — matching keywords',source:'LinkedIn Jobs search',detail:'Search results can change frequently. Check employer, location, requirements and closing date.',url:'https://www.linkedin.com/jobs/search/?keywords='+q},
+    {name:'Careers24 — matching keywords',source:'Careers24 search',detail:'Open the current search results and verify each vacancy on the employer page.',url:'https://www.careers24.com/jobs/?q='+q},
+    {name:'Indeed South Africa — matching keywords',source:'Indeed South Africa search',detail:'Search current listings using your selected field and qualification.',url:'https://za.indeed.com/jobs?q='+q},
+    {name:'Learnerships and internships',source:'Career discovery search',detail:'Search current learnerships/internships. Check age, NQF level, location, stipend and deadline.',url:'https://www.google.com/search?q='+learnQ},
+    {name:'University and course entry requirements',source:'Official institution pages via search',detail:'Compare subject marks, APS, language requirements and application dates on the institution’s official site.',url:'https://www.google.com/search?q='+courseQ}
+  ];
+}
+
+/* ---------- matches rendering ---------- */
+function refreshMatchesView(){
+  const p = PROFILES[CURRENT.email];
+  const empty = document.getElementById('matchesEmpty');
+  const content = document.getElementById('matchesContent');
+  if(!p.matches){
+    empty.classList.remove('hidden');
+    content.classList.add('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  content.classList.remove('hidden');
+  document.getElementById('matchesSubtitle').textContent =
+    `Matched on ${p.qualLevel} · ${fieldLabel(p.field)}`;
+  showMatchCat(activeMatchCat);
+}
+
+function fieldLabel(f){
+  const map = {Business:"Business & Commerce", IT:"Information Technology", Engineering:"Engineering",
+    Health:"Health Sciences", Education:"Education", Law:"Law", Humanities:"Humanities & Social Sciences"};
+  return map[f] || f;
+}
+
+/* Opportunity listings are not fabricated. Live category links out to search/source pages. */
+function scoreFor(seed){ return 70; }
+function getMatchItems(p, cat){ return (p.matches && p.matches[cat]) || []; }
+
+function showMatchCat(cat){
+  activeMatchCat = cat;
+  document.querySelectorAll('#matchesContent .tabbar button').forEach(b=>b.classList.toggle('active', b.dataset.cat===cat));
+  const p = PROFILES[CURRENT.email];
+  const grid = document.getElementById('matchGrid');
+  grid.innerHTML = '';
+  const items = getMatchItems(p, cat);
+
+  if(items.length===0){
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><div class="ico">🔍</div><p>No ${cat} matched your current qualification and field yet. Try a different field of interest on the Upload page.</p></div>`;
+    return;
+  }
+
+  items.forEach(item=>{
+    const card = document.createElement('div');
+    card.className = 'match-card';
+    let title, sub, meta, appName, appType, vacancyId = null, badge = '';
+    if(item.url){
+      title=item.name; sub=item.source; meta=item.detail;
+      card.innerHTML=`<span class="pill pill-indigo">Source link</span><h4>${esc(title)}</h4><div class="sub">${esc(sub)}</div><div class="meta">${esc(meta)}</div><a class="btn btn-sm" href="${esc(item.url)}" target="_blank" rel="noopener noreferrer">Open current listings ↗</a>`;
+      grid.appendChild(card); return;
+    }
+
+    if(cat==='universities'){
+      title = item.name; sub = item.location; meta = item.apsHint; appName = item.name; appType='University';
+    } else if(cat==='courses'){
+      title = item.name; sub = fieldLabel(item.field); meta = item.desc; appName = item.name; appType='Course';
+    } else if(cat==='companies'){
+      title = item.name; sub = item.location; appType='Job';
+      appName = item.name + ' — ' + item.roles[0];
+      if(item.vacancy){
+        vacancyId = item.vacancy.id;
+        meta = 'Open role: ' + item.roles[0] + (item.vacancy.desc ? ' — ' + item.vacancy.desc : '');
+        badge = '<span class="pill pill-emerald">Hiring now</span>';
+      } else {
+        meta = 'Open roles: ' + item.roles.join(', ');
+      }
+    } else {
+      title = item.name; sub = item.seta + ' · ' + item.duration; meta = 'Stipend: ' + item.stipend; appName = item.name; appType='Learnership';
+    }
+
+    const alreadyApplied = p.applications.some(a=> vacancyId ? a.vacancyId===vacancyId : (!a.vacancyId && a.name===appName));
+
+    card.innerHTML = `
+      <div class="score" data-pct="${item.pct}" style="--pct:${item.pct};"></div>
+      ${badge}
+      <h4>${esc(title)}</h4>
+      <div class="sub">${esc(sub)}</div>
+      <div class="meta">${esc(meta)}</div>
+      <button class="btn btn-sm" ${alreadyApplied?'disabled':''}>${alreadyApplied ? 'Applied ✓' : 'Apply'}</button>
+    `;
+    card.querySelector('button').addEventListener('click', ()=>applyTo(appType, appName, vacancyId));
+    grid.appendChild(card);
+  });
+}
+
+/* ---------- applications (candidate side) ---------- */
+function applyTo(type, name, vacancyId){
+  const p = PROFILES[CURRENT.email];
+  if(p.applications.some(a=> vacancyId ? a.vacancyId===vacancyId : (!a.vacancyId && a.name===name))) return;
+  p.applications.push({
+    id:'app'+(appSeq++), name, type, status:'Pending',
+    date: new Date().toLocaleDateString('en-ZA'), ts: Date.now(),
+    vacancyId: vacancyId || null
+  });
+  refreshOverview();
+  showMatchCat(activeMatchCat);
+}
+
+function refreshApplications(){
+  const p = PROFILES[CURRENT.email];
+  const empty = document.getElementById('applicationsEmpty');
+  const list = document.getElementById('applicationsList');
+  list.innerHTML = '';
+  if(p.applications.length===0){
+    empty.classList.remove('hidden');
+    return;
+  }
+  empty.classList.add('hidden');
+  p.applications.slice().reverse().forEach(a=>{
+    const row = document.createElement('div');
+    row.className = 'app-row';
+    const note = a.status==='Accepted' ? ' · The employer accepted your application' : '';
+    row.innerHTML = `
+      <div><div class="name">${esc(a.name)}</div><div class="type">${a.type} · Applied ${a.date}${note}</div></div>
+      <span class="status status-${a.status.toLowerCase()}">${a.status}</span>
+    `;
+    list.appendChild(row);
+  });
+}
+
+/* ======================================================================
+   BUSINESS PAGE
+   ====================================================================== */
+/* ---------- company verification ---------- */
+/* Accepts 2015/123456/07 or 201512345607 and returns the slashed form, or null if the format is wrong */
+function normalizeRegNo(v){
+  const m = String(v).replace(/\s+/g,'').match(/^(\d{4})\/?(\d{6})\/?(\d{2})$/);
+  return m ? `${m[1]}/${m[2]}/${m[3]}` : null;
+}
+
+/* STAND-IN. Replace the body with a call to YOUR backend, for example:
+     const r = await fetch('/api/verify-company', {method:'POST', headers:{'Content-Type':'application/json'},
+                           body: JSON.stringify({regNo, company})});
+     return await r.json();      // expected shape: {ok:boolean, message?:string}
+   The backend does the CIPC / provider lookup (check the company is active, and ideally that the
+   signer is a director). Never put API keys in this file — anyone can read them in the browser.
+   For testing, this stand-in approves everything except numbers whose middle part is 000000. */
+function verifyCompany(regNo, company){
+  // No CIPC API is connected in this standalone file. Never claim a company was verified by a fake check.
+  return Promise.resolve({ok:false, message:'Automatic CIPC verification is not connected in this demo. A backend and authorised company-register service are required.'});
+}
+
+function startVerification(user){
+  user.verification = 'pending';
+  user.verifyNote = '';
+  verifyCompany(user.regNo, user.company).then(res=>{
+    user.verification = res.ok ? 'verified' : 'rejected';
+    user.verifyNote = res.message || '';
+    if(CURRENT === user && !document.getElementById('view-business').classList.contains('hidden')) refreshBiz();
+  });
+}
+
+function retryVerification(){
+  startVerification(CURRENT);
+  refreshBiz();
+}
+
+function ownerVerified(email){
+  const u = USERS.find(x=>x.email===email);
+  return !!u && u.verification === 'verified';
+}
+
+function refreshBizVerification(){
+  const b = document.getElementById('bizVerifyBanner');
+  const st = CURRENT.verification || 'pending';
+  b.className = 'notice notice-' + st;
+  if(st==='pending'){
+    b.innerHTML = `<b>Verifying your company…</b> Company registration ${esc(CURRENT.regNo)} has not been checked against CIPC. A real verification service must be connected before the platform can mark this company as verified.`;
+  } else if(st==='rejected'){
+    b.innerHTML = `<b>We couldn't verify this registration number.</b> ${esc(CURRENT.verifyNote)} <button class="btn btn-sm" style="margin-left:.6rem;" onclick="retryVerification()">Try again</button>`;
+  } else {
+    b.innerHTML = `✓ <b>${esc(CURRENT.company)}</b> is verified (reg. no. ${esc(CURRENT.regNo)}).`;
+  }
+}
+
+function bizVacancies(){ return VACANCIES.filter(v=>v.ownerEmail===CURRENT.email); }
+
+/* every application (from any candidate) made to this business's vacancies */
+function bizApplications(){
+  const ids = new Set(bizVacancies().map(v=>v.id));
+  const out = [];
+  USERS.forEach(u=>{
+    const p = PROFILES[u.email];
+    if(!p) return;
+    p.applications.forEach(a=>{ if(a.vacancyId && ids.has(a.vacancyId)) out.push({a, u, p}); });
+  });
+  return out.sort((x,y)=>y.a.ts - x.a.ts);
+}
+
+function renderBusiness(){
+  if(!CURRENT) return;
+  document.getElementById('bizUserLine').textContent = CURRENT.company + ' · ' + CURRENT.name;
+  document.getElementById('bizGreeting').textContent = 'Welcome, ' + CURRENT.company;
+  activeBizFilter = 'Pending';
+  showBizPage('overview');
+}
+
+function showBizPage(page){
+  document.querySelectorAll('.biz-page').forEach(p=>p.classList.add('hidden'));
+  document.getElementById('bpage-'+page).classList.remove('hidden');
+  document.querySelectorAll('#view-business .dash-nav button').forEach(b=>b.classList.toggle('active', b.dataset.bpage===page));
+  refreshBiz();
+}
+
+function refreshBiz(){
+  refreshBizVerification();
+  refreshBizOverview();
+  refreshBizApplications();
+  refreshBizVacancies();
+}
+
+function refreshBizOverview(){
+  const vacs = bizVacancies();
+  const apps = bizApplications();
+  const pending = apps.filter(x=>x.a.status==='Pending').length;
+  const accepted = apps.filter(x=>x.a.status==='Accepted').length;
+
+  document.getElementById('bStatOpen').textContent = vacs.filter(v=>!v.closed).length;
+  document.getElementById('bStatTotal').textContent = apps.length;
+  document.getElementById('bStatPending').textContent = pending;
+  document.getElementById('bStatAccepted').textContent = accepted;
+
+  const badge = document.getElementById('bizNavBadge');
+  badge.textContent = pending;
+  badge.classList.toggle('hidden', pending===0);
+
+  const txt = document.getElementById('bizNudgeText');
+  const btn = document.getElementById('bizNudgeBtn');
+  btn.classList.remove('hidden');
+  if(CURRENT.verification !== 'verified'){
+    txt.textContent = 'Your company must be verified before you can post vacancies and accept applications.';
+    btn.classList.add('hidden');
+  } else if(vacs.length===0){
+    txt.textContent = 'Post your first vacancy so matched candidates can find it and apply.';
+    btn.textContent = 'Post a Vacancy';
+    btn.onclick = ()=>showBizPage('vacancies');
+  } else if(pending>0){
+    txt.textContent = `You have ${pending} application${pending===1?'':'s'} waiting for your decision.`;
+    btn.textContent = 'Review Applications';
+    btn.onclick = ()=>{ activeBizFilter='Pending'; showBizPage('applications'); };
+  } else {
+    txt.textContent = apps.length===0
+      ? 'Your vacancies are live. Applications will appear here as candidates apply.'
+      : "You're all caught up — no applications are waiting for a decision.";
+    btn.textContent = 'View Applications';
+    btn.onclick = ()=>{ activeBizFilter='All'; showBizPage('applications'); };
+  }
+}
+
+function setBizFilter(f){ activeBizFilter = f; refreshBizApplications(); }
+
+function refreshBizApplications(){
+  const all = bizApplications();
+  const counts = {Pending:0, Accepted:0, Declined:0, All:all.length};
+  all.forEach(x=>{ counts[x.a.status]++; });
+
+  document.getElementById('bizTabs').innerHTML = ['Pending','Accepted','Declined','All'].map(f=>
+    `<button class="${f===activeBizFilter?'active':''}" onclick="setBizFilter('${f}')">${f} (${counts[f]})</button>`
+  ).join('');
+
+  const rows = activeBizFilter==='All' ? all : all.filter(x=>x.a.status===activeBizFilter);
+  const list = document.getElementById('bizAppsList');
+  const empty = document.getElementById('bizAppsEmpty');
+  list.innerHTML = '';
+
+  if(rows.length===0){
+    empty.classList.remove('hidden');
+    document.getElementById('bizAppsEmptyText').textContent = all.length===0
+      ? "No applications yet. Once candidates apply to your vacancies they'll show up here."
+      : `No ${activeBizFilter.toLowerCase()} applications.`;
+    return;
+  }
+  empty.classList.add('hidden');
+
+  rows.forEach(({a,u,p})=>{
+    const vac = VACANCIES.find(v=>v.id===a.vacancyId);
+    const qual = p.qualLevel ? `${esc(p.qualLevel)} · ${esc(fieldLabel(p.field))}` : 'Not provided';
+    const docs = p.docs.length ? p.docs.map(d=>'📄 '+esc(d)).join('<br>') : 'None uploaded';
+    const dis = CURRENT.verification==='verified' ? '' : 'disabled';
+    const actions = a.status==='Pending'
+      ? `<button class="btn btn-sm" ${dis} onclick="setAppStatus('${a.id}','Accepted')">✓ Accept</button>
+         <button class="btn btn-sm btn-danger" ${dis} onclick="setAppStatus('${a.id}','Declined')">✕ Decline</button>`
+      : `<button class="btn btn-sm btn-ghost" ${dis} onclick="setAppStatus('${a.id}','Pending')">Undo decision</button>`;
+
+    const card = document.createElement('div');
+    card.className = 'biz-app';
+    card.innerHTML = `
+      <div class="biz-app-top">
+        <div><div class="name">${esc(u.name)}</div><div class="type">${esc(u.email)} · ${esc(u.role)}</div></div>
+        <span class="status status-${a.status.toLowerCase()}">${a.status}</span>
+      </div>
+      <div class="biz-app-body">
+        <div>Applied for <b>${esc(vac ? vac.title : a.name)}</b> · ${a.date}</div>
+        <div>Qualification: <b>${qual}</b></div>
+        <div>Documents:<br>${docs}</div>
+      </div>
+      <div class="biz-app-actions">${actions}</div>
+    `;
+    list.appendChild(card);
+  });
+}
+
+function setAppStatus(id, status){
+  if(CURRENT.verification !== 'verified') return;          // must be a verified company
+  const hit = bizApplications().find(x=>x.a.id===id);   // only this business's own applications
+  if(!hit) return;
+  hit.a.status = status;
+  refreshBiz();
+}
+
+function postVacancy(e){
+  e.preventDefault();
+  if(CURRENT.verification !== 'verified') return false;   // must be a verified company
+  const title = document.getElementById('vacTitle').value.trim();
+  const field = document.getElementById('vacField').value;
+  const location = document.getElementById('vacLocation').value.trim();
+  const desc = document.getElementById('vacDesc').value.trim();
+  if(!title || !location) return false;
+
+  VACANCIES.push({
+    id:'vac'+(vacSeq++), ownerEmail:CURRENT.email, company:CURRENT.company,
+    title, field, location, desc, closed:false, date:new Date().toLocaleDateString('en-ZA')
+  });
+  e.target.reset();
+  const ok = document.getElementById('vacPosted');
+  ok.classList.remove('hidden');
+  setTimeout(()=>ok.classList.add('hidden'), 2000);
+  refreshBiz();
+  return false;
+}
+
+function toggleVacancy(id){
+  const v = bizVacancies().find(v=>v.id===id);
+  if(!v) return;
+  v.closed = !v.closed;
+  refreshBiz();
+}
+
+function refreshBizVacancies(){
+  const vacs = bizVacancies().slice().reverse();
+  const apps = bizApplications();
+  const verified = CURRENT.verification === 'verified';
+  document.getElementById('vacSubmit').disabled = !verified;
+  document.getElementById('vacLocked').classList.toggle('hidden', verified);
+  const list = document.getElementById('bizVacList');
+  list.innerHTML = '';
+  document.getElementById('bizVacEmpty').classList.toggle('hidden', vacs.length>0);
+
+  vacs.forEach(v=>{
+    const mine = apps.filter(x=>x.a.vacancyId===v.id);
+    const pend = mine.filter(x=>x.a.status==='Pending').length;
+    const row = document.createElement('div');
+    row.className = 'app-row';
+    row.innerHTML = `
+      <div>
+        <div class="name">${esc(v.title)} <span class="pill ${v.closed?'pill-amber':'pill-emerald'}" style="margin-left:.4rem;">${v.closed?'Closed':'Open'}</span></div>
+        <div class="type">${esc(fieldLabel(v.field))} · ${esc(v.location)} · Posted ${v.date} · ${mine.length} applicant${mine.length===1?'':'s'}${pend?` (${pend} pending)`:''}</div>
+      </div>
+      <button class="btn btn-sm btn-ghost" onclick="toggleVacancy('${v.id}')">${v.closed?'Reopen':'Close vacancy'}</button>
+    `;
+    list.appendChild(row);
+  });
+}
+
+/* ---------- init ---------- */
+goLanding();
+// PDF.js is used only in the browser; no document bytes are uploaded by this standalone prototype.
+</script>
+</body>
+</html>
