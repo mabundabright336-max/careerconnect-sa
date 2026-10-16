@@ -1,0 +1,16 @@
+{
+  "name": "careerconnect-sa",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "CareerConnect SA with AI document reading",
+  "scripts": {
+    "start": "node --env-file=.env server.js",
+    "test": "node test.js"
+  },
+  "engines": { "node": ">=20.6" },
+  "dependencies": {
+    "express": "^4.21.0",
+    "multer": "^2.0.0"
+  }
+}
