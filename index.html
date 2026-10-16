@@ -337,9 +337,6 @@
 
         <!-- REGISTER FORM -->
         <form id="registerForm" class="hidden" onsubmit="return handleRegister(event)">
-          <div class="field"><label>Full Name</label><input type="text" id="regName" required placeholder="Thandiwe Nkosi"></div>
-          <div class="field"><label>Email Address</label><input type="email" id="regEmail" required placeholder="you@example.com"></div>
-          <div class="field"><label>Password</label><input type="password" id="regPassword" required placeholder="Create a password"></div>
           <div class="field">
             <label>I am a...</label>
             <select id="regRole" required onchange="toggleCompanyField()">
@@ -350,6 +347,14 @@
               <option value="Job Seeker">Job Seeker</option>
               <option value="Employer/Company">Employer / Company</option>
             </select>
+          </div>
+          <div class="field"><label>Full Name</label><input type="text" id="regName" required placeholder="Thandiwe Nkosi"></div>
+          <div class="field"><label>Email Address</label><input type="email" id="regEmail" required placeholder="you@example.com"></div>
+          <div class="field"><label>Password</label><input type="password" id="regPassword" required placeholder="Create a password"></div>
+          <div class="field hidden" id="regIdField">
+            <label for="regIdNumber">South African ID Number</label>
+            <input type="text" id="regIdNumber" inputmode="numeric" maxlength="13" placeholder="Enter your 13-digit ID number" autocomplete="off">
+            <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">Required for individual accounts; not needed for company accounts.</div>
           </div>
           <div class="hidden" id="regCompanyField">
             <div class="field"><label>Company Name</label><input type="text" id="regCompany" placeholder="Acme (Pty) Ltd"></div>
@@ -778,6 +783,11 @@ function showAuthError(msg){
 function toggleCompanyField(){
   const isEmp = document.getElementById('regRole').value === 'Employer/Company';
   document.getElementById('regCompanyField').classList.toggle('hidden', !isEmp);
+  const idField = document.getElementById('regIdField');
+  const idInput = document.getElementById('regIdNumber');
+  idField.classList.toggle('hidden', isEmp);
+  idInput.required = !isEmp;
+  if(isEmp) idInput.value = '';
 }
 
 function handleRegister(e){
@@ -788,9 +798,14 @@ function handleRegister(e){
   const role = document.getElementById('regRole').value;
   const company = document.getElementById('regCompany').value.trim();
   const isEmp = role === 'Employer/Company';
+  const rawId = document.getElementById('regIdNumber').value.trim();
+  const parsedId = !isEmp ? parseSAID(rawId) : null;
   const regNo = isEmp ? normalizeRegNo(document.getElementById('regRegNo').value) : null;
 
   if(!role){ showAuthError('Please select what best describes you.'); return false; }
+  if(!isEmp && !rawId){ showAuthError('Please enter your South African ID number to create an individual account.'); return false; }
+  if(!isEmp && !parsedId.ok){ showAuthError('Please check your South African ID number: ' + parsedId.msg); return false; }
+  if(!isEmp && Object.keys(PROFILES).some(e => PROFILES[e].idNumber === parsedId.id)){ showAuthError('This ID number is already linked to another account.'); return false; }
   if(isEmp && !company){ showAuthError('Please enter your company name.'); return false; }
   if(isEmp && !regNo){ showAuthError('Enter a valid company registration number in the format 2015/123456/07.'); return false; }
   if(isEmp && USERS.some(u=>u.regNo===regNo)){ showAuthError('This registration number is already linked to another account.'); return false; }
@@ -799,6 +814,7 @@ function handleRegister(e){
   const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: ''};
   USERS.push(user);
   PROFILES[email] = emptyProfile();
+  if(!isEmp) PROFILES[email].idNumber = parsedId.id;
   saveAppState();
   CURRENT = user;
   if(isEmp) startVerification(user);   // employers start as "pending" until the check passes
