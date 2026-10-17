@@ -200,6 +200,23 @@
   .cc-chat-compose input:focus{outline:2px solid #c7d2fe;border-color:var(--indigo);}
   .cc-chat-compose button{border:0;border-radius:10px;background:var(--emerald);color:#fff;padding:.65rem .85rem;font-weight:700;}
   .cc-chat-note{font-size:.68rem;color:#64748b;text-align:center;padding:0 .6rem .55rem;background:#fff;}
+  /* password strength */
+  .pw-rules{list-style:none;margin:.55rem 0 0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:.2rem .8rem;font-size:.78rem;color:var(--ink-soft);}
+  @media(max-width:520px){.pw-rules{grid-template-columns:1fr;}}
+  .pw-rules li::before{content:"○ ";color:#94a3b8;}
+  .pw-rules li.ok{color:var(--emerald-dark);font-weight:600;}
+  .pw-rules li.ok::before{content:"✓ ";color:var(--emerald-dark);}
+  .pw-meter{height:6px;border-radius:999px;background:var(--line);margin-top:.6rem;overflow:hidden;}
+  .pw-meter span{display:block;height:100%;width:0;border-radius:999px;transition:width .2s ease, background .2s ease;}
+  .pw-meter-label{font-size:.76rem;font-weight:600;margin-top:.25rem;min-height:1.1em;}
+  .pw-match{font-size:.78rem;font-weight:600;margin-top:.35rem;min-height:1.1em;}
+  .pw-match.ok{color:var(--emerald-dark);} .pw-match.bad{color:#B91C1C;}
+  .pw-show{display:flex;align-items:center;gap:.5rem;font-size:.82rem;color:var(--ink-soft);margin:-.3rem 0 1.1rem;}
+  .pw-show input{width:auto;}
+  .cc-chat-msg a{color:#4338ca;text-decoration:underline;}
+  .cc-chat-msg.typing{opacity:.55;letter-spacing:.15em;}
+  .cc-chat-quick{max-height:112px;overflow-y:auto;}
+  .cc-chat-quick button:disabled,.cc-chat-compose input:disabled{opacity:.55;cursor:wait;}
   @media(max-width:480px){.cc-chat-launcher{right:14px;bottom:14px}.cc-chat-panel{right:8px;bottom:75px;width:calc(100vw - 16px);height:min(540px,calc(100vh - 95px));}}
 
   @media(max-width:640px){header.hero{padding:3.5rem 1.2rem;}header.hero h1{font-size:2.3rem}.container{padding:0 1rem}.dash-main{padding:1rem}.panel{padding:1.1rem}.tabbar{gap:.35rem}.tabbar button{font-size:.78rem;padding:.5rem .8rem}}
@@ -216,6 +233,13 @@
   .id-file .nm{font-weight:600;word-break:break-all;}
   .id-file .sz{font-size:.76rem;color:var(--ink-soft);}
   .id-privacy{font-size:.78rem;color:var(--ink-soft);margin-top:1rem;background:#F5F7FF;border-radius:8px;padding:.7rem .9rem;}
+
+  /* ===== OTP / confirm-your-account ===== */
+  .otp-input{letter-spacing:.45em;font-size:1.5rem;text-align:center;font-weight:700;}
+  .otp-link{background:none;border:none;color:var(--indigo);font-weight:600;cursor:pointer;font-size:inherit;font-family:inherit;padding:0;}
+  .otp-link:disabled{color:var(--ink-soft);cursor:default;font-weight:500;}
+  .otp-banner{background:#FEF3C7;color:#92400E;border-radius:10px;padding:.7rem .9rem;font-size:.84rem;line-height:1.45;margin:.9rem 0;}
+  .otp-ok{background:#D1FAE5;color:#065F46;border-radius:10px;padding:.6rem .9rem;font-size:.84rem;margin:.9rem 0;}
 </style>
 </head>
 <body>
@@ -320,7 +344,7 @@
         <div style="margin-bottom:1.2rem;">
           <a href="#" onclick="goLanding();return false;" style="font-size:.85rem;color:var(--ink-soft);text-decoration:none;">&larr; Back to home</a>
         </div>
-        <div class="auth-tabs">
+        <div class="auth-tabs" id="authTabs">
           <button class="auth-tab active" id="tab-login" onclick="switchAuthTab('login')">Log In</button>
           <button class="auth-tab" id="tab-register" onclick="switchAuthTab('register')">Create Account</button>
         </div>
@@ -350,7 +374,25 @@
           </div>
           <div class="field"><label>Full Name</label><input type="text" id="regName" required placeholder="Thandiwe Nkosi"></div>
           <div class="field"><label>Email Address</label><input type="email" id="regEmail" required placeholder="you@example.com"></div>
-          <div class="field"><label>Password</label><input type="password" id="regPassword" required placeholder="Create a password"></div>
+          <div class="field">
+            <label for="regPassword">Password</label>
+            <input type="password" id="regPassword" required placeholder="Create a strong password" autocomplete="new-password" oninput="updatePasswordUI()" aria-describedby="pwRules">
+            <div class="pw-meter" aria-hidden="true"><span id="pwMeterBar"></span></div>
+            <div class="pw-meter-label" id="pwMeterLabel"></div>
+            <ul class="pw-rules" id="pwRules" aria-live="polite">
+              <li data-rule="len">At least 8 characters</li>
+              <li data-rule="upper">One uppercase letter (A–Z)</li>
+              <li data-rule="lower">One lowercase letter (a–z)</li>
+              <li data-rule="num">One number (0–9)</li>
+              <li data-rule="sym">One symbol (e.g. ! @ # $ %)</li>
+            </ul>
+          </div>
+          <div class="field">
+            <label for="regPasswordConfirm">Confirm Password</label>
+            <input type="password" id="regPasswordConfirm" required placeholder="Re-enter your password" autocomplete="new-password" oninput="updatePasswordUI()">
+            <div class="pw-match" id="pwMatch" aria-live="polite"></div>
+          </div>
+          <label class="pw-show"><input type="checkbox" onchange="togglePwVisibility(this.checked)"> Show passwords</label>
           <div class="field hidden" id="regIdField">
             <label for="regIdNumber">South African ID Number</label>
             <input type="text" id="regIdNumber" inputmode="numeric" maxlength="13" placeholder="Enter your 13-digit ID number" autocomplete="off">
@@ -362,9 +404,40 @@
               <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">Your CIPC registration number. We verify it against the company register before you can post vacancies.</div>
             </div>
           </div>
+          <div class="field">
+            <label for="regOtpChannel">Send my confirmation code by</label>
+            <select id="regOtpChannel" onchange="toggleOtpChannel()">
+              <option value="email">Email</option>
+              <option value="sms">SMS (text message)</option>
+            </select>
+            <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">We'll send a 6-digit code to confirm it's really you before your account is created.</div>
+          </div>
+          <div class="field hidden" id="regPhoneField">
+            <label for="regPhone">Mobile number</label>
+            <input type="tel" id="regPhone" inputmode="tel" placeholder="082 123 4567" autocomplete="tel">
+            <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">A South African mobile number. Standard SMS rates may apply.</div>
+          </div>
           <button type="submit" class="btn" style="width:100%;">Create Account</button>
           <p class="form-note">Already have an account? <a href="#" onclick="switchAuthTab('login');return false;" style="color:var(--indigo);font-weight:600;">Log in</a></p>
         </form>
+
+        <!-- CONFIRM CODE (shown after Create Account) -->
+        <div id="otpPanel" class="hidden">
+          <h3 style="margin-bottom:.4rem;">Confirm it's you</h3>
+          <p class="form-note" id="otpInfo" style="margin-top:0;" role="status" aria-live="polite"></p>
+          <div id="otpBanner" class="otp-banner hidden"></div>
+          <div id="otpNotice" class="otp-ok hidden" role="status"></div>
+          <div class="form-error" id="otpError" style="display:none;" role="alert"></div>
+          <form onsubmit="return verifyOtp(event)" style="margin-top:1rem;">
+            <div class="field">
+              <label for="otpCode">6-digit code</label>
+              <input type="text" id="otpCode" class="otp-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="••••••" required>
+            </div>
+            <button type="submit" class="btn" id="otpVerifyBtn" style="width:100%;">Verify &amp; Create Account</button>
+          </form>
+          <p class="form-note"><button type="button" class="otp-link" id="otpResendBtn" onclick="resendOtp()">Resend code</button> &nbsp;·&nbsp; <button type="button" class="otp-link" onclick="cancelOtp()">Change email / number</button></p>
+        </div>
+
       </div>
     </div>
   </div>
@@ -626,26 +699,21 @@
 </div>
 
 
-<!-- Friendly, built-in FAQ chatbot. This local prototype does not send messages to an external AI service. -->
+<!-- Built-in career-guidance + website-help assistant. Runs in the browser; optional AI backend via CHAT_AI_ENDPOINT in the script. -->
 <div id="ccChatPanel" class="cc-chat-panel hidden" role="dialog" aria-label="CareerConnect Assistant" aria-modal="false">
   <div class="cc-chat-head">
-    <div><strong>💬 CareerConnect Assistant</strong><small>Here to help you find your next step</small></div>
+    <div><strong>💬 CareerConnect Assistant</strong><small>Career guidance &amp; website help</small></div>
     <button type="button" class="cc-chat-close" onclick="toggleCareerChat(false)" aria-label="Close chat">×</button>
   </div>
   <div id="ccChatMessages" class="cc-chat-messages" role="log" aria-live="polite" aria-relevant="additions"></div>
-  <div class="cc-chat-quick" id="ccChatQuick">
-    <button type="button" onclick="sendCareerQuick('How do I get started?')">Get started</button>
-    <button type="button" onclick="sendCareerQuick('How do I upload my qualification?')">Upload qualification</button>
-    <button type="button" onclick="sendCareerQuick('How do matches work?')">My matches</button>
-    <button type="button" onclick="sendCareerQuick('How do I apply for a job?')">Applications</button>
-  </div>
+  <div class="cc-chat-quick" id="ccChatQuick" aria-label="Suggested questions"></div>
   <form class="cc-chat-compose" onsubmit="sendCareerChat(event)">
     <input id="ccChatInput" type="text" maxlength="500" placeholder="Type your question…" autocomplete="off" aria-label="Type your question" required>
     <button type="submit">Send</button>
   </form>
-  <div class="cc-chat-note">Friendly help for using CareerConnect SA</div>
+  <div class="cc-chat-note">General guidance only — always confirm requirements with the institution or employer. Don’t share passwords or ID numbers here.</div>
 </div>
-<button type="button" class="cc-chat-launcher" id="ccChatLauncher" onclick="toggleCareerChat()" aria-controls="ccChatPanel" aria-expanded="false"><span aria-hidden="true">💬</span> Ask us</button>
+<button type="button" class="cc-chat-launcher" id="ccChatLauncher" onclick="toggleCareerChat()" aria-controls="ccChatPanel" aria-expanded="false"><span aria-hidden="true">💬</span> Career help</button>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/mammoth/1.8.0/mammoth.browser.min.js" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
@@ -767,6 +835,7 @@ function esc(s){
 
 function switchAuthTab(tab){
   pendingAuthTab = tab;
+  hideOtpPanel();
   document.getElementById('tab-login').classList.toggle('active', tab==='login');
   document.getElementById('tab-register').classList.toggle('active', tab==='register');
   document.getElementById('loginForm').classList.toggle('hidden', tab!=='login');
@@ -790,6 +859,37 @@ function toggleCompanyField(){
   if(isEmp) idInput.value = '';
 }
 
+/* ---------- password strength + confirmation ---------- */
+const PW_RULES = [
+  ['len',   /^.{8,}$/,          'at least 8 characters'],
+  ['upper', /[A-Z]/,            'one uppercase letter'],
+  ['lower', /[a-z]/,            'one lowercase letter'],
+  ['num',   /\d/,               'one number'],
+  ['sym',   /[^A-Za-z0-9\s]/,   'one symbol (e.g. ! @ # $ %)']
+];
+function pwMissing(pw){ return PW_RULES.filter(r=>!r[1].test(pw)).map(r=>r[2]); }
+function updatePasswordUI(){
+  const pw = document.getElementById('regPassword').value;
+  const cf = document.getElementById('regPasswordConfirm').value;
+  let met = 0;
+  PW_RULES.forEach(([id,re])=>{
+    const ok = re.test(pw); if(ok) met++;
+    const li = document.querySelector('#pwRules [data-rule="'+id+'"]'); if(li) li.classList.toggle('ok', ok);
+  });
+  const bar = document.getElementById('pwMeterBar'), label = document.getElementById('pwMeterLabel');
+  const levels = [['',0,'transparent'],['Very weak',20,'#DC2626'],['Weak',40,'#EA580C'],['Fair',60,'#F59E0B'],['Good',80,'#65A30D'],['Strong',100,'#059669']];
+  const lv = pw ? levels[met] : levels[0];
+  bar.style.width = lv[1] + '%'; bar.style.background = lv[2];
+  label.textContent = lv[0]; label.style.color = lv[2];
+  const m = document.getElementById('pwMatch');
+  if(!cf){ m.textContent=''; m.className='pw-match'; }
+  else if(pw===cf){ m.textContent='✓ Passwords match'; m.className='pw-match ok'; }
+  else { m.textContent='Passwords do not match yet'; m.className='pw-match bad'; }
+}
+function togglePwVisibility(show){
+  ['regPassword','regPasswordConfirm'].forEach(id=>{ document.getElementById(id).type = show ? 'text' : 'password'; });
+}
+
 function handleRegister(e){
   e.preventDefault();
   const name = document.getElementById('regName').value.trim();
@@ -801,8 +901,13 @@ function handleRegister(e){
   const rawId = document.getElementById('regIdNumber').value.trim();
   const parsedId = !isEmp ? parseSAID(rawId) : null;
   const regNo = isEmp ? normalizeRegNo(document.getElementById('regRegNo').value) : null;
+  const channel = document.getElementById('regOtpChannel').value === 'sms' ? 'sms' : 'email';
+  const phone = channel === 'sms' ? normalizeSAPhone(document.getElementById('regPhone').value) : null;
 
   if(!role){ showAuthError('Please select what best describes you.'); return false; }
+  const missing = pwMissing(password);
+  if(missing.length){ showAuthError('Your password is not strong enough. It still needs: ' + missing.join(', ') + '.'); return false; }
+  if(password !== document.getElementById('regPasswordConfirm').value){ showAuthError('The passwords you entered do not match. Please confirm your password.'); return false; }
   if(!isEmp && !rawId){ showAuthError('Please enter your South African ID number to create an individual account.'); return false; }
   if(!isEmp && !parsedId.ok){ showAuthError('Please check your South African ID number: ' + parsedId.msg); return false; }
   if(!isEmp && Object.keys(PROFILES).some(e => PROFILES[e].idNumber === parsedId.id)){ showAuthError('This ID number is already linked to another account.'); return false; }
@@ -810,16 +915,171 @@ function handleRegister(e){
   if(isEmp && !regNo){ showAuthError('Enter a valid company registration number in the format 2015/123456/07.'); return false; }
   if(isEmp && USERS.some(u=>u.regNo===regNo)){ showAuthError('This registration number is already linked to another account.'); return false; }
   if(USERS.some(u=>u.email===email)){ showAuthError('An account with this email already exists — try logging in.'); return false; }
+  if(channel === 'sms' && !phone){ showAuthError('Enter a valid South African mobile number, for example 082 123 4567.'); return false; }
+  if(phone && USERS.some(u=>u.phone===phone)){ showAuthError('This mobile number is already linked to another account.'); return false; }
 
-  const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: ''};
+  const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: '', phone, contactVerified: false};
+  // Nothing is saved yet: the account is only created once the code is confirmed.
+  pendingSignup = {user, idNumber: !isEmp ? parsedId.id : null, channel, destination: channel === 'sms' ? phone : email};
+  document.getElementById('authError').style.display = 'none';
+  beginOtp(false);
+  return false;
+}
+
+/* ---------- confirm the user with a one-time code (email or SMS) ---------- */
+const API_BASE = '';              // '' = same origin (server.js serves this page)
+const OTP_DEMO_MODE = false;      // true = preview these screens WITHOUT the server. The code is shown on screen, so it is NOT secure.
+let pendingSignup = null;         // sign-up waiting for its code (not an account yet)
+let otpState = null;              // {otpId, masked, resendAt, demoCode, devMode}
+let otpTimer = null;
+const otpEl = id => document.getElementById(id);
+
+/* South African mobile numbers (06x, 07x, 08x) -> +27XXXXXXXXX, or null */
+function normalizeSAPhone(v){
+  const m = String(v||'').replace(/[\s\-().]/g,'').match(/^(?:\+27|0027|27|0)([678]\d{8})$/);
+  return m ? '+27' + m[1] : null;
+}
+function maskDestination(channel, dest){
+  if(channel === 'sms') return '+27 ••• ••• ' + dest.slice(-4);
+  const parts = dest.split('@');
+  return parts[0].slice(0,2) + '•••@' + parts[1];
+}
+
+function toggleOtpChannel(){
+  const sms = otpEl('regOtpChannel').value === 'sms';
+  otpEl('regPhoneField').classList.toggle('hidden', !sms);
+  otpEl('regPhone').required = sms;
+  if(!sms) otpEl('regPhone').value = '';
+}
+
+function showOtpError(msg){
+  const el = otpEl('otpError');
+  el.textContent = msg || '';
+  el.style.display = msg ? 'block' : 'none';
+}
+function setOtpBusy(busy){
+  otpEl('otpVerifyBtn').disabled = busy;
+  const submit = document.querySelector('#registerForm button[type="submit"]');
+  if(submit) submit.disabled = busy;
+  if(busy) otpEl('otpResendBtn').disabled = true; else tickResend();
+}
+
+async function sendOtpRequest(channel, destination){
+  if(OTP_DEMO_MODE){
+    const code = String(Math.floor(Math.random()*1000000)).padStart(6,'0');
+    return {otpId:'demo', masked: maskDestination(channel, destination), resendAfterSec:30, demoCode: code};
+  }
+  let res;
+  try{
+    res = await fetch(API_BASE + '/api/otp/send', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({channel, destination})});
+  }catch(_){ throw new Error('Could not reach the verification service. Make sure the server is running.'); }
+  let body = null; try{ body = await res.json(); }catch(_){}
+  if(!res.ok || !body) throw new Error((body && body.error) || 'We could not send your code. Please try again.');
+  return body;
+}
+
+async function verifyOtpRequest(otpId, code){
+  if(OTP_DEMO_MODE){
+    if(code !== otpState.demoCode) throw new Error('That code is not correct.');
+    return {ok:true, token:null};
+  }
+  let res;
+  try{
+    res = await fetch(API_BASE + '/api/otp/verify', {method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({otpId, code})});
+  }catch(_){ throw new Error('Could not reach the verification service. Please try again.'); }
+  let body = null; try{ body = await res.json(); }catch(_){}
+  if(!res.ok || !body || !body.ok) throw new Error((body && body.error) || 'We could not check that code. Please try again.');
+  return body;
+}
+
+async function beginOtp(isResend){
+  const s = pendingSignup; if(!s) return;
+  setOtpBusy(true);
+  try{
+    const r = await sendOtpRequest(s.channel, s.destination);
+    otpState = {otpId:r.otpId, masked:r.masked, resendAt: Date.now() + (r.resendAfterSec||60)*1000, demoCode:r.demoCode||null, devMode:!!r.devMode};
+    showOtpPanel(isResend);
+  }catch(err){
+    if(isResend) showOtpError(err.message); else showAuthError(err.message);
+  }finally{
+    setOtpBusy(false);
+  }
+}
+function resendOtp(){ beginOtp(true); }
+
+function tickResend(){
+  const btn = otpEl('otpResendBtn');
+  if(!otpState){ btn.disabled = false; return; }
+  const left = Math.ceil((otpState.resendAt - Date.now())/1000);
+  if(left > 0){ btn.disabled = true; btn.textContent = 'Resend code in ' + left + 's'; }
+  else { btn.disabled = false; btn.textContent = 'Resend code'; clearInterval(otpTimer); otpTimer = null; }
+}
+
+function showOtpPanel(isResend){
+  const s = pendingSignup;
+  ['loginForm','registerForm','authTabs'].forEach(id=>otpEl(id).classList.add('hidden'));
+  otpEl('authError').style.display = 'none';
+  otpEl('otpPanel').classList.remove('hidden');
+  otpEl('otpInfo').textContent = 'We sent a 6-digit code by ' + (s.channel === 'sms' ? 'SMS' : 'email') + ' to ' + otpState.masked + '. It expires in 10 minutes.';
+  const banner = otpEl('otpBanner');
+  if(otpState.demoCode){
+    banner.textContent = 'DEMO MODE — no message was sent. Your code is ' + otpState.demoCode + '. (Turn OTP_DEMO_MODE off for real codes.)';
+    banner.classList.remove('hidden');
+  } else if(otpState.devMode){
+    banner.textContent = 'Developer mode — no email/SMS provider is set up on the server, so the code was printed in the server terminal instead of being sent.';
+    banner.classList.remove('hidden');
+  } else { banner.classList.add('hidden'); }
+  const note = otpEl('otpNotice');
+  note.textContent = 'A new code has been sent.';
+  note.classList.toggle('hidden', !isResend);
+  showOtpError('');
+  const input = otpEl('otpCode'); input.value = ''; input.focus();
+  clearInterval(otpTimer); tickResend(); otpTimer = setInterval(tickResend, 1000);
+}
+
+/* Called whenever the auth screen switches tabs: closes the code step and forgets the pending sign-up */
+function hideOtpPanel(){
+  const panel = otpEl('otpPanel');
+  if(!panel || panel.classList.contains('hidden')) return;
+  panel.classList.add('hidden');
+  otpEl('authTabs').classList.remove('hidden');
+  clearInterval(otpTimer); otpTimer = null;
+  pendingSignup = null; otpState = null;
+}
+function cancelOtp(){ switchAuthTab('register'); }   // keeps what they typed so they can fix the email/number
+
+function verifyOtp(e){ e.preventDefault(); confirmOtp(); return false; }
+async function confirmOtp(){
+  if(!pendingSignup || !otpState) return;
+  const code = otpEl('otpCode').value.replace(/\D/g,'');
+  if(code.length !== 6){ showOtpError('Enter the 6-digit code.'); return; }
+  setOtpBusy(true); showOtpError('');
+  try{
+    const r = await verifyOtpRequest(otpState.otpId, code);
+    finishSignup(r.token);
+  }catch(err){
+    showOtpError(err.message);
+  }finally{
+    setOtpBusy(false);
+  }
+}
+
+function finishSignup(token){
+  const s = pendingSignup; if(!s) return;
+  const user = s.user;
+  if(USERS.some(u=>u.email===user.email)){ showOtpError('An account with this email already exists. Go back and log in instead.'); return; }
+  user.contactVerified = true;
+  user.verifiedVia = s.channel;
+  user.verifiedAt = new Date().toISOString();
+  user.otpToken = token || null;     // proof from the server that this email/number was confirmed
   USERS.push(user);
-  PROFILES[email] = emptyProfile();
-  if(!isEmp) PROFILES[email].idNumber = parsedId.id;
+  PROFILES[user.email] = emptyProfile();
+  if(s.idNumber) PROFILES[user.email].idNumber = s.idNumber;
   saveAppState();
   CURRENT = user;
-  if(isEmp) startVerification(user);   // employers start as "pending" until the check passes
-  enterApp();                          // employers land on the business page
-  return false;
+  hideOtpPanel();                    // also clears pendingSignup / timers
+  if(isEmployer(user)) startVerification(user);   // employers still go through the company check
+  enterApp();
 }
 
 function handleLogin(e){
@@ -838,6 +1098,8 @@ function handleLogout(){
   document.getElementById('loginForm').reset();
   document.getElementById('registerForm').reset();
   toggleCompanyField();
+  updatePasswordUI(); togglePwVisibility(false);
+  toggleOtpChannel(); pendingSignup = null; otpState = null;
   goAuth('login');
 }
 
@@ -1579,8 +1841,365 @@ function refreshBizVacancies(){
 }
 
 
-/* ---------- friendly local chatbot ---------- */
+/* ---------- CareerConnect Assistant: career guidance + website help ---------- */
+/* Everything below runs in the browser. It answers from a built-in knowledge base and from the
+   signed-in user's own profile.
+
+   OPTIONAL real AI: set CHAT_AI_ENDPOINT to YOUR backend URL (e.g. '/api/career-chat'). Questions the built-in
+   knowledge can't answer are then POSTed there as JSON: {message, history, siteFacts, profile}
+   and the backend should return {reply:"..."} (it calls the AI model). Never put an API key in this file —
+   anyone can read it in the browser. Only role / qualification / field are sent as "profile"; never name, email or ID. */
+const CHAT_AI_ENDPOINT = '';
+
 let careerChatWelcomed = false;
+let chatBusy = false;
+const chatState = {mode:null, lastId:null, lastField:null, history:[]};
+const CHAT_DEFAULT_CHIPS = ['Help me choose a career','Calculate my APS','How do matches work?','What should I do next?'];
+
+/* ================= career knowledge ================= */
+const FIELD_GUIDE = {
+  Business:{label:'Business & Commerce',
+    careers:'accountant or CA(SA), auditor, banker, financial analyst, HR officer, marketer, retail or operations manager, supply-chain coordinator, entrepreneur',
+    subjects:'Mathematics (not Maths Literacy) is usually needed for BCom Accounting, finance and actuarial science. Accounting, Economics and Business Studies help but are rarely compulsory. Maths Literacy can be enough for some business diplomas and higher certificates.',
+    paths:'Higher Certificate or Diploma (e.g. Retail Business Management) → junior roles, then upgrade later. BCom → graduate programmes. To become a CA(SA): BCom Accounting, honours, then a traineeship and board exams. BANKSETA, INSETA and W&RSETA learnerships are a way in without a degree.',
+    tip:'Employers value Excel, communication and customer-service skills as much as marks.'},
+  IT:{label:'Information Technology',
+    careers:'software developer, IT support / help-desk technician, network technician, data analyst, cybersecurity analyst, web developer, systems analyst',
+    subjects:'Mathematics is normally needed for BSc Computer Science. Some diplomas accept lower Maths marks or Maths Literacy. IT or CAT at school helps but is not always required.',
+    paths:'Diploma in IT (e.g. at a university of technology) or BSc Computer Science. Short courses and certifications (such as CompTIA or Cisco) plus a portfolio of projects help a lot. MICT SETA learnerships offer paid entry-level IT training.',
+    tip:'Build things: a small website or app on GitHub often counts for more than a long list of courses.'},
+  Engineering:{label:'Engineering',
+    careers:'civil, electrical, mechanical or chemical engineer, engineering technician, and artisans such as electrician, fitter, welder or plumber',
+    subjects:'Mathematics and Physical Sciences are required for engineering degrees and most diplomas. Engineering Graphics & Design helps. Maths Literacy will not meet the requirement.',
+    paths:'BEng / BSc Engineering (4 years) → professional registration with ECSA. Diploma / National Diploma → engineering technician. Artisans train through an apprenticeship or learnership and finish with a trade test. merSETA learnerships are a common route.',
+    tip:'If your marks are borderline for a degree, a diploma or artisan route is a respected, in-demand alternative.'},
+  Health:{label:'Health Sciences',
+    careers:'doctor, nurse, pharmacist, physiotherapist, radiographer, emergency care practitioner, dietitian, dentist',
+    subjects:'Usually Life Sciences, Physical Sciences and Mathematics (Maths Literacy is generally not accepted for the big degrees). Medicine, dentistry and pharmacy are extremely competitive and often have extra selection steps.',
+    paths:'MBChB or other health degrees; nursing diplomas or degrees (registered with the SA Nursing Council); pharmacy assistant and community-health roles via short programmes. Professionals register with bodies such as HPCSA, SANC or SAPC. HWSETA learnerships offer entry-level health training.',
+    tip:'Have a backup plan: related degrees and nursing are good routes if medicine is out of reach.'},
+  Education:{label:'Education',
+    careers:'Foundation Phase, Intermediate or Senior Phase teacher, subject teacher, lecturer, early childhood development (ECD) practitioner, education support roles',
+    subjects:'Depends on the phase and the subjects you want to teach — you need a good mark in the subject itself. Maths, Science and African languages are often in short supply.',
+    paths:'Bachelor of Education (BEd), or a degree followed by a PGCE. Teachers register with SACE. The Funza Lushaka bursary supports teaching students in return for working in public schools. ETDP SETA learnerships cover ECD.',
+    tip:'Volunteering at a school or tutoring is the best way to test whether teaching suits you.'},
+  Law:{label:'Law',
+    careers:'attorney, advocate, prosecutor or magistrate, paralegal, compliance officer, legal secretary, legal adviser',
+    subjects:'No fixed school subjects at most universities, but strong English and good overall marks matter; entry is competitive.',
+    paths:'LLB (usually 4 years) → practical training: candidate attorney (articles) or pupillage for advocates → admission. A paralegal certificate or diploma is a shorter, cheaper way into the legal world. Legal Aid South Africa and law firms hire candidate attorneys and paralegals.',
+    tip:'Reading, writing and argument skills are everything — practise them early (debating, essays, mock trials).'},
+  Humanities:{label:'Humanities & Social Sciences',
+    careers:'social worker, psychologist or counsellor (needs further study), researcher, journalist, language practitioner, HR or community-development officer, public-sector roles',
+    subjects:'Usually no strict subject list — good language marks matter. Social work and psychology programmes have their own selection.',
+    paths:'BA, BSocSci or Bachelor of Social Work (registered with SACSSP). Psychology needs postgraduate study to practise. Pair your degree with practical skills (data, writing, project work) to widen your options.',
+    tip:'Volunteer or intern with an NGO or municipality while studying — experience makes humanities graduates stand out.'}
+};
+const INTERESTS = [
+  ['Working with technology','IT'],['Numbers, money & business','Business'],['Building, fixing & machines','Engineering'],
+  ['Caring for people’s health','Health'],['Teaching & mentoring','Education'],['Debate, justice & rules','Law'],['Understanding people & society','Humanities']
+];
+
+function detectField(q, raw){
+  if(/\bIT\b/.test(raw||'')) return 'IT';
+  const tests = [
+    ['IT', /information technology|\bict\b|software|developer|programm|\bcoding\b|computer|cyber|network engineer|data (analyst|analytics|science)|web ?(design|dev)|\btech\b|technology/],
+    ['Engineering', /engineer|electrician|plumber|welder|artisan|mechanic|technician|millwright|boilermaker/],
+    ['Health', /\bnurs|doctor|medicine|medical|pharmac|physio|dentist|paramedic|radiograph|health|clinic|mbchb|dietitian|optometr/],
+    ['Education', /teach|lecturer|foundation phase|\bbed\b|pgce|educator|early childhood/],
+    ['Law', /\blaw\b|lawyer|attorney|advocate|legal|paralegal|\bllb\b|magistrate|prosecutor/],
+    ['Business', /business|accountant|accounting|finance|financial|bank|commerce|marketing|\bhr\b|human resources|retail|entrepreneur|econom|auditor|actuar|supply chain|logistics|bcom|sales/],
+    ['Humanities', /psycholog|social work|humanities|sociolog|journalis|politic|counsel|community develop|social science|language (studies|practitioner|degree)|linguistic/]
+  ];
+  for(const [f,re] of tests){ if(re.test(q)) return f; }
+  return null;
+}
+
+function apsPoints(m){ return m>=80?7 : m>=70?6 : m>=60?5 : m>=50?4 : m>=40?3 : m>=30?2 : 1; }
+function parseMarks(raw){
+  const nums = (String(raw).match(/\b\d{1,3}(?:\.\d+)?\b/g)||[]).map(Number);
+  return (nums.length>=5 && nums.length<=8 && nums.every(n=>n>=0 && n<=100)) ? nums : null;
+}
+function apsReply(marks){
+  if(marks.length>7) return {text:'That’s more than 7 numbers. Send up to 7 subject percentages (leave out Life Orientation if you can), e.g. “APS 72 65 80 58 61 70”.', chips:CHAT_DEFAULT_CHIPS};
+  const pts = marks.map(apsPoints), total = pts.reduce((a,b)=>a+b,0);
+  const list = marks.map((m,i)=>`${m}% → ${pts[i]}`).join('\n');
+  return {id:'aps_result', chips:['Which universities can I apply to?','Help me choose a career','What if my marks are low?'],
+    text:`Here’s your APS from those ${marks.length} subjects (7-point scale):\n\n${list}\n\nTotal: ${total} points.\n\nNotes:\n• 80–100% = 7, 70–79% = 6, 60–69% = 5, 50–59% = 4, 40–49% = 3, 30–39% = 2, 0–29% = 1.\n• Most universities leave out Life Orientation — if one of your numbers was Life Orientation, subtract its points.\n• Some universities (like UCT and Wits) use their own scoring systems, and many programmes also need specific subjects and minimum marks, so treat this as a guide.\n• On the Universities tab of your matches you’ll see rough APS ranges for each institution.`};
+}
+
+/* ================= context from the signed-in user ================= */
+function chatCtx(){
+  const u = (typeof CURRENT!=='undefined') ? CURRENT : null;
+  const p = u ? PROFILES[u.email] : null;
+  const emp = !!u && isEmployer(u);
+  const vacs = emp ? VACANCIES.filter(v=>v.ownerEmail===u.email) : [];
+  return {u, p, loggedIn:!!u, employer:emp, name:u?String(u.name||'').split(' ')[0]:'',
+    qual:p&&p.qualLevel, field:p&&p.field, docs:p?(p.docs||[]).length:0, matched:!!(p&&p.matches),
+    apps:p?(p.applications||[]):[], vacs, detected:null};
+}
+function profileSummary(c){
+  return c.loggedIn ? {role:c.u.role, qualification:c.qual||null, field:c.field||null, hasDocuments:c.docs>0} : null;
+}
+
+function fieldReply(f, c, more){
+  const g = FIELD_GUIDE[f];
+  chatState.lastField = f;
+  let t = `${g.label} — the quick picture:\n\n• Careers: ${g.careers}.\n• Subjects: ${g.subjects}\n• Pathways: ${g.paths}\n• Tip: ${g.tip}\n\nRequirements differ between institutions, so always confirm on the official website.`;
+  if(c.p && !c.employer){
+    if(c.field===f) t += `\n\nThis is the field on your profile — check the Matches page for universities, courses and vacancies.`;
+    else t += `\n\nTo see matches for this field, choose it as your Field of Interest on Upload Documents and click Find My Matches.`;
+  }
+  return {id:'field', text:t, chips:['What subjects do I need?','How do I fund my studies?','TVET or university?','Help me choose a career']};
+}
+
+function nextStepReply(c){
+  if(!c.loggedIn) return {text:'Start by creating a free account (‘Get Started — It’s Free’). Then upload your results, certificate, diploma or CV on Upload Documents and click Find My Matches. Want a quick idea of which field suits you first? Ask me to “help me choose a career”.', chips:['How do I register?','Help me choose a career']};
+  if(c.employer){
+    if(!c.vacs.length) return {text:`Hi ${c.name}! You haven’t posted a vacancy yet. Open Vacancies, add a job title, industry and location, and click Post Vacancy so matching candidates can find it.`, chips:['How do I post a vacancy?']};
+    const ids = new Set(c.vacs.map(v=>v.id)); let pending=0, total=0;
+    USERS.forEach(x=>{ const pp=PROFILES[x.email]; if(pp) pp.applications.forEach(a=>{ if(ids.has(a.vacancyId)){ total++; if(a.status==='Pending') pending++; } }); });
+    return {text: pending ? `You have ${pending} application${pending===1?'':'s'} waiting for a decision (out of ${total}). Open Applications to accept or decline and leave feedback.` : (total ? `You’re up to date — all ${total} application${total===1?' has':'s have'} a decision. You can post another vacancy to reach more candidates.` : `Your ${c.vacs.length} vacanc${c.vacs.length===1?'y is':'ies are'} live. Applications will appear under Applications as candidates apply.`), chips:['How do I review applicants?','How do I post a vacancy?']};
+  }
+  if(!c.docs) return {text:`Hi ${c.name}! Next step: open Upload Documents, choose your highest qualification and field, add your results/certificate/CV, tick the consent box and click Find My Matches.`, chips:['What files can I upload?','Help me choose a career']};
+  if(!c.matched) return {text:`You’ve added a document — now click Find My Matches on Upload Documents to see universities, courses, vacancies and learnerships for ${c.qual||'your qualification'} in ${c.field?FIELD_GUIDE[c.field].label:'your field'}.`, chips:['How do matches work?']};
+  const pend = c.apps.filter(a=>a.status==='Pending').length, acc = c.apps.filter(a=>a.status==='Accepted').length;
+  const fb = c.apps.filter(a=>a.feedback).length;
+  if(!c.apps.length) return {text:`Your matches are ready (${c.qual} · ${FIELD_GUIDE[c.field]?FIELD_GUIDE[c.field].label:c.field}). Open Companies & Jobs and apply to the vacancies marked “Hiring now”, and use the Learnerships and Live Opportunities tabs for more. Not sure which route? Ask me about learnerships, TVET or bursaries.`, chips:['What is a learnership?','How do I apply?','Help with my CV']};
+  return {text:`You have ${c.apps.length} application${c.apps.length===1?'':'s'}: ${pend} pending, ${acc} accepted${fb?`, and ${fb} with company feedback`:''}. Check Applications for updates. While you wait, polish your CV and keep applying — ask me for CV or interview tips.`, chips:['CV tips','Interview tips','What is a learnership?']};
+}
+
+/* ================= intents ================= */
+/* k = [[regex, weight], ...]; a = answer text or function(ctx, q, raw) → text | {text, chips} */
+const CHAT_INTENTS = [
+  {id:'greet', k:[[/^(hi|hello|hey|howzit|sawubona|molo|dumela|good (morning|afternoon|evening))( there| everyone| team| bot| assistant)?[!. ]*$/,4]],
+    a:c=>`Hi${c.name?' '+c.name:''}! 😊 I can give career guidance (choosing a field, subjects, APS, TVET vs university, learnerships, funding, CV and interview tips) and help you use CareerConnect SA. What would you like to know?`,
+    chips:CHAT_DEFAULT_CHIPS},
+  {id:'help_menu', k:[[/what can you (do|help)|how can you help|what do you do|help me$|^help$|menu|what (can|do) i ask/,3]],
+    a:'I can help with two things:\n\n• Career guidance — picking a field, subjects you need, APS, TVET vs university, learnerships & internships, bursaries/NSFAS, CV and interview tips, first jobs, studying while working.\n• Using CareerConnect SA — signing up, uploading documents, matches, applying, tracking applications, employer vacancies, notifications and saved data.\n\nWhat would you like to start with?',
+    chips:CHAT_DEFAULT_CHIPS},
+  {id:'what_is_site', k:[[/what is (this|careerconnect|the (site|website|platform))|about (this|the) (site|website|platform)|what does (this|the) (site|website|platform) do|purpose of|how does (this|the) (site|website|platform) work/,3],[/careerconnect/,1]],
+    a:'CareerConnect SA helps South Africans find study and work opportunities that fit their actual qualifications. You create a free profile, upload your results, certificate, diploma, degree or CV, and the site suggests universities, courses, jobs, internships and learnerships. Companies can also post vacancies and review applicants. I can also give career guidance — try “Help me choose a career”.',
+    chips:['How do I register?','How do matches work?','I’m an employer']},
+  {id:'register', k:[[/regist|sign ?up|create (an )?account|get started|new account|join/,3],[/how do i (start|begin)/,2]],
+    a:'To sign up:\n1. Click “Get Started — It’s Free” (or Sign Up).\n2. On Create Account choose what describes you: Grade 12 Learner, TVET Student/Graduate, University Student/Graduate, Job Seeker, or Employer/Company.\n3. Enter your name, email and a strong password (8+ characters with an uppercase letter, a lowercase letter, a number and a symbol), then confirm it.\n4. Individuals also enter their 13-digit South African ID number; employers enter a company name and registration number (like 2015/123456/07).\n5. Submit and you’ll land on your dashboard.',
+    chips:['Why is my ID number needed?','Which account type should I pick?','How do I upload my documents?']},
+  {id:'id_number', k:[[/\bid\b.*(number|document|copy|upload)|identity|why.*\bid\b|id number|south african id|13.?digit/,3]],
+    a:'Individual accounts need a valid 13-digit South African ID number. The site checks the date of birth and the check digit, so typos are caught, and one ID number can only be linked to one account. You can also upload a copy of your ID (PDF, JPG or PNG, up to 5 MB) under My Profile → Identity Verification. In this demo it stays in your browser. Please don’t type your ID number into this chat.',
+    chips:['Is my data safe?','How do I register?']},
+  {id:'password_rules', k:[[/strong password|password (rules|requirements?|must|should|strength|format|criteria|characters?|symbols?|uppercase|policy)|confirm (my )?password|passwords? (do not|don.?t) match|what makes a (good|strong) password|weak password|not strong enough/,5]],
+    a:'When you create an account your password must be strong: at least 8 characters, with one uppercase letter, one lowercase letter, one number and one symbol (like ! @ # $ %). You then type it a second time under Confirm Password — the two must match. A checklist and strength bar on the sign-up form show what’s still missing. Tip: a short sentence with a number and symbol is easy to remember and hard to guess. Never reuse a password from your bank or email.',
+    chips:['How do I register?','I forgot my password']},
+  {id:'login', k:[[/log ?in|sign ?in|password|forgot|reset|can.?t (get|access) (in|my account)/,3]],
+    a:'Click “Log In” and enter the email and password you registered with. This demo has no password-reset email, so if you forget the password you’d need to register again with a different email — please don’t reuse a real password. Accounts are saved in this browser only, so log in on the same device and browser you registered on.',
+    chips:['Where is my data saved?','How do I register?']},
+  {id:'roles', k:[[/which (account|role|option|type)|account type|difference between|who can (use|join|register)|i am a (learner|student|graduate)|candidate or employer/,3]],
+    a:'Pick the option that fits you today: Grade 12 Learner, TVET Student/Graduate, University Student/Graduate or Job Seeker — all four get the candidate dashboard (profile, uploads, matches, applications). Employer / Company gives you the business area where you post vacancies and review applicants. You can change your candidate type later in My Profile; an employer account stays an employer account.',
+    chips:['How do I register?','I’m an employer']},
+  {id:'upload', k:[[/upload|how do i (add|submit) (my )?(documents?|results|cv|certificate)|find my matches|add (my )?(results|cv|certificate|diploma|degree)/,3],[/document|qualification|results|\bcv\b/,1]],
+    a:'Open Upload Documents, then:\n1. Choose your highest qualification and your field of interest.\n2. Choose a file — PDF, DOCX, TXT, PNG, JPG or WEBP.\n3. Tick the consent box.\n4. Click Find My Matches.\n\nThe text is read inside your browser (scans use OCR) and used to suggest a qualification and field, which you can correct. You need at least one uploaded document before matching works.',
+    chips:['What files can I upload?','How do matches work?','Is my data safe?']},
+  {id:'file_issues', k:[[/file (type|format|size)|which (file|format)s?|what files?|pdf|docx|scan|ocr|unreadable|can.?t read|couldn.?t read|not readable|blurry|photo of/,3]],
+    a:'Supported files: PDF, DOCX, TXT, PNG, JPG and WEBP. If the text can’t be read, try a clearer scan or a straight-on photo of the page, or upload a DOCX/TXT version. You can always choose your qualification and field manually. Only the first 12 PDF pages are read, and scanned PDFs use OCR on the first page, which can take a moment.',
+    chips:['How do I upload my documents?']},
+  {id:'matches', k:[[/\bmatch(es|ing)?\b|what (do i|will i) (see|get)|opportunit|\btabs?\b/,2],[/universit(y|ies)|courses?/,1],[/how do .*work/,1]],
+    a:'After you click Find My Matches you’ll see tabs for Universities, Courses, Companies & Jobs, Learnerships and Live Opportunities. They’re based on your qualification, your field and any text read from your document. The percentage is an estimated profile-fit score — not a chance of being hired or admitted. Always confirm requirements on the official website.',
+    chips:['Why don’t I see vacancies?','How do I apply?','What does the % mean?']},
+  {id:'fit_score', k:[[/percent|%|\bscore\b|chance of|probability/,2],[/profile.?fit|\bfit score/,2],[/what does .* mean/,1]],
+    a:'The percentage is a transparent profile-fit estimate: it rewards a matching field, a suitable qualification level and words in your document that match the opportunity. It is NOT a probability of being hired or admitted. Real decisions depend on the institution or employer’s own requirements, competition and deadlines.',
+    chips:['How do matches work?']},
+  {id:'vacancy_missing', k:[[/(don.?t|do not|can.?t|cannot|didn.?t|not) (i |we )?(see|find|showing|appear)|no (vacanc|match|job|result)|\bempty\b|missing|where (are|is) (the )?(vacanc|job)/,3],[/vacanc|match|job/,1]],
+    a:'Vacancies posted by companies appear under Companies & Jobs with a “Hiring now” badge — but only when (1) the company’s industry matches your field of interest and (2) the vacancy was posted before you last clicked Find My Matches. If you don’t see a new vacancy, go to Upload Documents and click Find My Matches again, and check your field is set to the right industry.',
+    chips:['How do matches work?','How do I upload my documents?']},
+  {id:'apply', k:[[/\bapply\b|applying|application process|submit an application/,3]],
+    a:'On a company vacancy under Companies & Jobs, click Apply. It goes straight to that company and appears in your Applications list with a status (Pending, Accepted or Declined) plus any feedback the company leaves. For universities, courses and learnerships, Apply only adds the item to your tracking list — the official application is done on the institution’s or provider’s own website, so check their deadlines.',
+    chips:['Where do I see my application status?','What is a learnership?']},
+  {id:'status_feedback', k:[[/status|pending|accepted|declined|feedback|my applications|track|did (the )?(company|employer)/,3]],
+    a:'Open Applications in your dashboard. Each one shows its status — Pending (waiting), Accepted or Declined — and a “Company feedback” note when the employer writes one. You also get a notification on your Overview page when a company updates your status or leaves feedback.',
+    chips:['How do notifications work?']},
+  {id:'employer_register', k:[[/employer|company|recruit|hiring|\bhire\b|business account|register (my )?(company|business)|registration number|reg(istration)? no/,3],[/i.?m an employer|i am an employer|my company|our company/,2]],
+    a:'Choose Employer / Company when you sign up, then enter your company name and registration number in the format 2015/123456/07. Each registration number can be linked to one account. You’ll land in the business area with Overview, Applications and Vacancies.',
+    chips:['How do I post a vacancy?','How do I review applicants?','Is my company verified?']},
+  {id:'employer_verify', k:[[/verif|cipc|verified|is my company/,6]],
+    a:'The site checks that the registration number has the right format, but it can’t yet confirm it with CIPC (the company register) — that needs a connected backend service. Until then you’ll see a notice that verification is pending or couldn’t be completed. In this demo you can still post vacancies for testing.',
+    chips:['How do I post a vacancy?']},
+  {id:'post_vacancy', k:[[/post (a )?(vacanc|job)|advertis|add (a )?(vacanc|job)|list (a )?job|new vacancy|close (a )?vacanc|reopen/,3]],
+    a:'In the business area open Vacancies, enter the job title, industry, location and an optional description, then click Post Vacancy. Candidates in the same industry see it under Companies & Jobs (“Hiring now”) the next time they run Find My Matches. You can close or reopen a vacancy at any time.',
+    chips:['How do I review applicants?']},
+  {id:'review_apps', k:[[/review (the |my )?(applicants?|applications?)|(see|view|manage) (my |the )?applicants?|accept or decline|leave feedback|give feedback|shortlist|candidates (who )?(applied|apply)/,3]],
+    a:'Open Applications in the business area. Filter by Pending, Accepted, Declined or All; see each candidate’s qualification and the documents they listed; click Accept or Decline; and write feedback — it’s shown on the candidate’s profile and they get a notification. “Undo decision” puts an application back to Pending.',
+    chips:['How do I post a vacancy?']},
+  {id:'notifications', k:[[/notif|e-?mail|alert|inbox|message me/,3]],
+    a:'On your Overview page you’ll find in-app notifications about your applications (status changes and company feedback) and a switch for email alerts. Real emails need a secure backend email service, so this demo can’t send them yet — updates appear inside the site instead.',
+    chips:['Where do I see my application status?']},
+  {id:'data_saved', k:[[/saved|save my|where is my data|lost my|disappear|another (device|phone|computer)|different (device|phone|browser)|clear(ed)? (my )?(browser|cache|data)|private (mode|window)|safe|secure|privacy|popia|data protection|store(d)?\b|is my data/,3]],
+    a:'Your account, profile and applications are saved in this browser on this device only — not on a server. They stay after a refresh, but won’t appear on another device, or if you clear your browser data or use a private window. Your documents are read inside your browser and aren’t uploaded anywhere in this demo. Never share passwords or ID numbers in chat. A live version of the platform would add secure storage and POPIA-compliant consent.',
+    chips:['Why is my ID number needed?']},
+  {id:'cost', k:[[/is (it|this|the site|careerconnect).{0,20}free|does it cost|how much does (it|this|careerconnect)|subscription|any (fees?|charges?)|\bprice\b|\bpricing\b/,3],[/\bfree\b/,1]],
+    a:'CareerConnect SA is free for students and job seekers. No pricing is set up for companies in this demo.',
+    chips:['How do I register?']},
+  {id:'contact', k:[[/contact|human|support|customer (care|service)|talk to (someone|a person)|call you|phone number|whatsapp/,3]],
+    a:'There’s no live human support in this demo. I can help with how the site works and with career questions. If something on your account isn’t working, tell me which page you’re on and what you see — but please don’t share passwords or ID numbers.',
+    chips:CHAT_DEFAULT_CHIPS},
+  {id:'profile_edit', k:[[/edit (my )?(profile|name|details)|change (my )?(name|email|role|details|profile|password)|update (my )?(profile|details)|my profile/,3]],
+    a:'My Profile lets you change your name and candidate type, and add your ID number and ID document. Email alerts are on the Overview page. Your email address can’t be changed in this demo.',
+    chips:['Why is my ID number needed?']},
+  {id:'delete_account', k:[[/delete (my )?(account|data|profile|document)|remove (my )?(account|data|document)|deactivate|close (my )?account/,3]],
+    a:'There’s no delete-account button in this demo. You can remove uploaded documents on the Upload Documents page, and clearing this site’s data in your browser erases everything stored here.',
+    chips:['Where is my data saved?']},
+  {id:'troubleshoot', k:[[/not working|doesn.?t work|does not work|\berror\b|\bbug\b|broken|stuck|nothing happens|won.?t (load|open|let)|can.?t (upload|log ?in|register|apply|click)|(a|the|my) (problem|issue)\b/,3]],
+    a:'Sorry you’re stuck! Quick checks: refresh the page; tick the consent box before clicking Find My Matches; use a readable PDF, DOCX, TXT or image; and run Find My Matches again if something is missing. Tell me what you were doing and what you saw, and I’ll narrow it down.',
+    chips:['What files can I upload?','Why don’t I see vacancies?']},
+  {id:'next_step', k:[[/what (should|do) i do (next|now)|next step|where (do i|should i) start|what now|what.?s next|my (progress|situation)|recommend (something )?for me/,3]],
+    a:(c)=>nextStepReply(c)},
+
+  /* ---------------- career guidance ---------------- */
+  {id:'choose_career', k:[[/which (career|field|course|degree)( should| do| to| is best| suits?| would| fits?| for me)|which (career|field|course|degree)\??$|what (should i|must i|do i|to) (study|become)|career (advice|guidance|test|quiz|path|choice)|(don.?t|do not|not sure|unsure) .{0,15}(study|do with|become|career)|help me (choose|pick|decide|find)( a| my)? (career|field|course|degree)|i.?m (lost|confused|undecided)/,4]],
+    a:()=>{ chatState.mode='quiz'; return {text:'Let’s narrow it down. What do you enjoy most? Pick the closest one (or tell me in your own words).', chips:INTERESTS.map(x=>x[0])}; }},
+  {id:'aps', k:[[/\baps\b|admission point|points score|calculate my (points|aps)|how many points/,4]],
+    a:()=>{ chatState.mode='aps'; return {text:'APS (Admission Point Score) turns your Grade 12 percentages into points: 80–100% = 7, 70–79% = 6, 60–69% = 5, 50–59% = 4, 40–49% = 3, 30–39% = 2, 0–29% = 1. Add up your subjects (most universities leave out Life Orientation).\n\nWant me to calculate it? Type your subject percentages, e.g. “72 65 80 58 61 70”.', chips:['What if my marks are low?','Which universities can I apply to?']}; }},
+  {id:'nsc_pass', k:[[/bachelor.?s? pass|diploma pass|higher certificate pass|pass (matric|grade 12)|matric (requirements|pass)|nsc (pass|requirements)|what (marks|percent)|minimum marks|do i qualify|will i qualify|qualify for (university|a degree|a diploma)/,3]],
+    a:'The National Senior Certificate (matric) has three main pass levels: a Bachelor’s pass (needed for degrees; roughly 50%+ in four high-credit subjects and 40% in your home language), a Diploma pass (roughly 40%+ in three high-credit subjects plus home language) and a Higher Certificate pass (lower requirements again). The exact rules come from the Department of Basic Education and each programme adds its own subject and APS requirements, so check the institution’s official admission page. Your school or the Universities tab ranges are a good starting point.',
+    chips:['Calculate my APS','What if my marks are low?']},
+  {id:'subjects', k:[[/subjects?\b|maths? lit|mathematical literacy|pure maths|do i need maths|physical science|life science|which subjects/,3]],
+    a:(c,q)=>{ const f = c.detected||chatState.lastField||c.field; if(f && FIELD_GUIDE[f]) { chatState.lastField=f; return {text:`For ${FIELD_GUIDE[f].label}: ${FIELD_GUIDE[f].subjects}\n\nSubject rules differ between institutions, so check each programme’s official requirements.`, chips:['Help me choose a career','What if my marks are low?']}; }
+      return {text:'Subject needs depend on the field: Engineering and most science/health degrees need Maths and Physical Sciences (Life Sciences for health); accounting and finance usually need Maths (not Maths Literacy); law and humanities usually need good language marks; teaching needs the subject you want to teach. Tell me a field (e.g. “nursing” or “IT”) and I’ll be specific.', chips:['Engineering','Business','Health','IT']}; }},
+  {id:'tvet_vs_uni', k:[[/tvet|college|university of technology|which is better|college or university|university or college|difference between (a )?(diploma|degree)|diploma (or|vs|versus) degree|degree (or|vs|versus) diploma|nc\(?v\)?|n[1-6]\b/,3]],
+    a:'University: degrees (3–4+ years), more theory, higher entry marks, opens professional and postgraduate routes. University of technology: diplomas and degrees that mix theory with practical, work-integrated learning. TVET college: practical, job-focused qualifications (NC(V) and N1–N6 programmes), lower entry requirements, often cheaper and a strong route into trades and technical jobs. Many people start at a TVET college or with a diploma and articulate to a degree later. “Better” depends on your marks, interests, budget and the job you want.',
+    chips:['How do I fund my studies?','What is a learnership?','What if my marks are low?']},
+  {id:'learnership', k:[[/learnership|internship|intern\b|apprentice|artisan|seta\b|setas|trade test|work.?integrated|graduate programme|trainee/,3]],
+    a:'• Learnership: paid training that combines classroom learning with workplace experience and leads to a registered qualification; funded through SETAs, usually about 12 months, with a monthly stipend.\n• Internship: structured work experience, often for graduates and diploma holders.\n• Apprenticeship (trades): hands-on training that ends with a trade test to become a qualified artisan.\n\nRequirements, age limits and stipends vary — check each listing. The Learnerships and Live Opportunities tabs on your matches link to current searches, and https://sayouth.mobi/ lists youth opportunities.',
+    chips:['How do I apply?','CV tips','How do I get a first job?']},
+  {id:'funding', k:[[/bursar|nsfas|funding|fund (my )?(studies|study)|financial aid|afford|student loan|scholarship|pay for (my )?(studies|university|college)|tuition|no money|can.?t pay/,4]],
+    a:'Ways to fund study in South Africa:\n• NSFAS — government funding for qualifying students at public universities and TVET colleges (it has a household-income limit; apply during the yearly window at https://www.nsfas.org.za/).\n• Bursaries from employers, SETAs, foundations and provincial departments — look at company careers pages and the funder’s own site.\n• Funza Lushaka — bursary for teaching students.\n• Learnerships — you earn a stipend while you train.\n• Part-time or distance study (e.g. UNISA) so you can work while studying.\n\nApply early; deadlines are often months before the academic year.',
+    chips:['TVET or university?','What is a learnership?','Can I study while working?']},
+  {id:'low_marks', k:[[/low marks|bad marks|poor marks|failed|fail(ed)? matric|didn.?t pass|not enough (marks|points)|rewrite|upgrade (my )?(marks|matric)|second chance|supplementary|too low|didn.?t get (in|accepted)|rejected by|missed the deadline|late application|clearing/,4]],
+    a:'Low marks or a missed deadline isn’t the end — there are real routes:\n• Higher Certificate or diploma programmes and TVET colleges have lower entry requirements, and you can articulate to a degree later.\n• Rewrite or upgrade subjects (the Department of Basic Education’s Second Chance Matric Programme, or supplementary exams).\n• After results, check which institutions still have space and apply through their late-application / clearing processes.\n• Learnerships and entry-level jobs can start your career while you improve your qualifications.\n\nTell me your marks or field and I can suggest realistic options.',
+    chips:['Calculate my APS','TVET or university?','What is a learnership?']},
+  {id:'cv', k:[[/\bcv\b|curriculum vitae|resume|résumé|cover letter|motivation letter/,3]],
+    a:'CV tips:\n• 1–2 pages, clean layout, professional email address.\n• Start with a 2–3 line profile saying who you are and what you’re looking for.\n• List your qualification (institution, year, key subjects/marks if strong), then experience — include part-time work, volunteering, school leadership and projects.\n• Add skills that match the job (e.g. Excel, customer service, languages).\n• Two references, with their permission.\n• Tailor it to each job and use words from the advert.\n• Skip your ID number and full home address — your town or city is enough.\n• Check spelling, then save as PDF.',
+    chips:['Interview tips','How do I get a first job?','Upload my CV']},
+  {id:'interview', k:[[/interview|what to wear|nervous|tell me about yourself|assessment/,3]],
+    a:'Interview tips:\n• Research the company and re-read the advert; match your examples to it.\n• Prepare answers using STAR: Situation, Task, Action, Result.\n• Practise “Tell me about yourself” in about a minute.\n• Arrive 10–15 minutes early (or test your link early online), dress neatly, bring copies of your CV and certified documents.\n• Prepare 2–3 questions to ask them.\n• Be honest about gaps — talk about what you learned.\n• Send a short thank-you message afterwards.',
+    chips:['CV tips','How do I get a first job?']},
+  {id:'first_job', k:[[/first job|no experience|without experience|entry.?level|get (a )?job|find (a )?job|job search|can.?t find (a )?job|unemployed|looking for work|jobs? for (matric|grade 12|school leavers?)|school leaver/,3]],
+    a:'Getting your first job without experience:\n• Look at learnerships, internships and graduate programmes — they’re designed for beginners.\n• Build proof of skill: volunteering, job shadowing, short free courses, small projects.\n• Apply widely and often; tailor each CV.\n• Tell friends, family, teachers and former employers you’re looking — many jobs are filled through people.\n• Use Companies & Jobs and Live Opportunities on your matches, https://sayouth.mobi/ and the public-service vacancy circulars at https://www.dpsa.gov.za/.\n• Keep a routine: set a weekly target of applications.',
+    chips:['What is a learnership?','CV tips','Interview tips']},
+  {id:'study_work', k:[[/study(ing)? while (working|i work)|distance (learning|study)|part.?time (study|degree)|unisa|study and work|online (degree|study)|evening classes/,3]],
+    a:'Yes — many people study while working. Open distance learning (UNISA is on the Universities list) and part-time or evening programmes let you keep a job. Plan for 10–15 study hours a week per module, check if your employer offers study leave or a bursary, and start with one or two modules to test the load. Recognition of Prior Learning (RPL) can also give credit for experience at some institutions.',
+    chips:['How do I fund my studies?','Career change']},
+  {id:'career_change', k:[[/career change|change (my )?career|switch (careers|fields)|change field|already (working|have a degree)|start over|too old|rpl\b|recognition of prior/,3]],
+    a:'Changing careers is common. List the skills you already have (customer service, leadership, admin, problem-solving) and match them to your target field. Then fill the gap with a short course, certificate or part-time study, ask about Recognition of Prior Learning (RPL), and look for entry or “career switcher” roles, internships and volunteer projects. Set your new Field of Interest on Upload Documents to see matches for it.',
+    chips:['Can I study while working?','CV tips']},
+  {id:'gap_year', k:[[/gap year|take a year off|year off|before (i )?(study|university)|should i work first/,3]],
+    a:'A gap year can work well if it has a plan: work or volunteer to earn money and experience, improve marks if needed, research courses, and apply early for next year (and for bursaries). Unplanned gap years are harder to explain later, so set goals and dates.',
+    chips:['How do I fund my studies?','Help me choose a career']},
+  {id:'salary', k:[[/salary|how much (do|does|will|can) .* (earn|make|get paid)|earn(ing)?s?\b|pay (range|scale)|income|highest paying|best paying|well paid/,3]],
+    a:'Pay varies a lot by employer, location, experience and sector, and I can’t give reliable salary figures, so I won’t guess. Check the salary range on real job adverts, the employer’s grade/salary scale for public-service posts (https://www.dpsa.gov.za/), and ask people already working in the field. Learnership stipends are shown on the listings.',
+    chips:['Help me choose a career','Skills in demand']},
+  {id:'in_demand', k:[[/in demand|scarce skills|future (jobs|careers)|jobs of the future|growing (fields|industries)|best (careers|jobs|fields)|top careers|high demand|skills (to learn|needed)/,4]],
+    a:'The Department of Higher Education and Training publishes an Occupations in High Demand list (https://www.dhet.gov.za/) — it’s the best official source. Commonly needed areas include healthcare, engineering and technical trades, IT and digital skills, teaching (especially Maths, Science and Foundation Phase), accounting/finance and logistics. Whatever you choose, communication, problem-solving and digital skills help everywhere.',
+    chips:['Help me choose a career','Engineering','IT']},
+  {id:'motivation', k:[[/discourag|hopeless|give up|giving up|stressed|anxious|overwhelmed|depress|lost hope|nothing (works|is working)|no future|useless|worthless/,3]],
+    a:'I’m sorry — searching for work or deciding what to study can feel heavy, and many people feel this way. You don’t have to solve everything today. Pick one small step: update one line of your CV, apply to one learnership, or ask me about one field. Talking to a trusted person helps too. If it feels like more than stress, the free SADAG helpline 0800 456 789 (24 hours) is there to listen.',
+    chips:['What should I do next?','Help me choose a career','CV tips']},
+  {id:'thanks', k:[[/thank|thanks|thx|appreciate|cheers|awesome|great help|helpful/,3]],
+    a:'You’re welcome! 😊 I’m cheering you on. Ask me anything else about careers or the site whenever you like.',
+    chips:CHAT_DEFAULT_CHIPS},
+  {id:'bye', k:[[/^(bye|goodbye|see you|cya|that.?s all|no thanks)\b/,3]],
+    a:'Goodbye, and good luck! 🍀 I’m here whenever you need career help.', chips:CHAT_DEFAULT_CHIPS},
+  {id:'universities', k:[[/which universit|what universit|universit(y|ies) (can|should|do) i|where (can|should) i study|best universit|apply to university|university applications?|closing date|application dates?/,3]],
+    a:(c)=>{ const base='Upload your qualification and field, then click Find My Matches — the Universities tab lists institutions that fit your qualification level and field with rough APS ranges, and the Courses tab shows programmes.'; const extra=' Application deadlines and requirements are set by each institution and differ, so always check the official admissions page (many close months before the academic year starts). Applying to several institutions improves your chances.'; return {text: base + (c.matched? ' Yours are ready — open Matches.' : '') + extra, chips:['Calculate my APS','How do I fund my studies?','TVET or university?']}; }}
+];
+
+/* ================= answering ================= */
+const ID_RE = /\b\d{13}\b/;
+function normalizeChat(s){ return String(s||'').toLowerCase().replace(/[’‘]/g,"'").replace(/\s+/g,' ').trim(); }
+
+function localChatReply(raw){
+  const c = chatCtx();
+  const q = normalizeChat(raw);
+
+  // sensitive data: never process or forward
+  if(ID_RE.test(raw)) return {id:'sensitive', text:'That looks like an ID number — please don’t share ID numbers, passwords or bank details in chat. I’ve hidden it. You can enter your ID number safely on the registration form or My Profile.', chips:CHAT_DEFAULT_CHIPS};
+  if(/suicid|kill myself|end my life|want to die|self.?harm|hurt myself/.test(q)) return {id:'crisis', text:'I’m really sorry you’re hurting — you matter, and you don’t have to go through this alone. If you’re in immediate danger, call 112 (mobile), 10111 (police) or 10177 (ambulance), or go to the nearest hospital casualty. You can also call the free SADAG suicide crisis line on 0800 567 567 or the helpline on 0800 456 789, both 24 hours. Please reach out to someone you trust right now.', chips:['Help me choose a career']};
+
+  // APS marks typed in
+  const marks = parseMarks(raw);
+  if(marks && (chatState.mode==='aps' || /\baps\b|points|marks|percent|%|results/.test(q))) { chatState.mode=null; return apsReply(marks); }
+
+  // quiz answer chosen
+  if(chatState.mode==='quiz'){
+    const hit = INTERESTS.find(x=>normalizeChat(x[0])===q);
+    if(hit){ chatState.mode=null; const r=fieldReply(hit[1], c); r.text = `Sounds like ${FIELD_GUIDE[hit[1]].label} could suit you. ` + r.text; return r; }
+    const f = detectField(q, raw);
+    if(f){ chatState.mode=null; const r=fieldReply(f, c); r.text = `Sounds like ${FIELD_GUIDE[f].label} could suit you. ` + r.text; return r; }
+  }
+
+  chatState.mode = null;   // a pending quiz / APS prompt only lasts for the next message
+
+  // follow-ups
+  if(/^(more|tell me more|go on|continue|explain( more| further)?|elaborate|what else)[?!. ]*$/.test(q)){
+    if(chatState.lastField) return fieldReply(chatState.lastField, c);
+    return {id:'more', text:'Happy to say more — which topic? You can ask about a field (like “nursing” or “engineering”), APS, funding, learnerships, CV or interview tips, or how any part of the site works.', chips:CHAT_DEFAULT_CHIPS};
+  }
+
+  c.detected = detectField(q, raw);
+  let best=null, bestScore=0;
+  for(const it of CHAT_INTENTS){
+    let s=0; for(const [re,w] of it.k){ const m=re.exec(q); if(m) s += (w||1) + m[0].length/1000; }
+    if(s>bestScore){ best=it; bestScore=s; }
+  }
+  // a mentioned career/field beats weak or generic matches
+  if(c.detected){
+    const careerWords = /career|study|become|want to be|work as|jobs? in|degree|course|what can i|interested in|pathway|how do i (become|get into)|qualify as|requirements? (for|to)|is .* a good/.test(q);
+    const fieldScore = 2 + (careerWords?2:0);
+    if(fieldScore > bestScore || (best && ['matches','fit_score','employer_register','upload','cv','interview'].includes(best.id) && careerWords && bestScore<=3)){
+      return fieldReply(c.detected, c);
+    }
+  }
+  if(best && bestScore>=2){
+    const res = (typeof best.a==='function') ? best.a(c, q, raw) : best.a;
+    const out = (typeof res==='string') ? {text:res, chips:best.chips||CHAT_DEFAULT_CHIPS} : res;
+    out.id = best.id; out.chips = out.chips || best.chips || CHAT_DEFAULT_CHIPS;
+    return out;
+  }
+  if(c.detected) return fieldReply(c.detected, c);
+  return null;   // not understood
+}
+
+function siteFactsText(){
+  return CHAT_INTENTS.filter(i=>typeof i.a==='string').map(i=>i.a).join('\n\n');
+}
+
+async function askChatAI(message){
+  const r = await fetch(CHAT_AI_ENDPOINT, {method:'POST', headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({message, history:chatState.history.slice(-8), siteFacts:siteFactsText(), profile:profileSummary(chatCtx())})});
+  if(!r.ok) throw new Error('AI service error');
+  const j = await r.json();
+  if(!j || !j.reply) throw new Error('Empty reply');
+  return String(j.reply).slice(0,2000);
+}
+
+async function careerChatReply(raw){
+  const local = localChatReply(raw);
+  if(local) return local;
+  if(CHAT_AI_ENDPOINT){
+    try { return {id:'ai', text:await askChatAI(raw), chips:CHAT_DEFAULT_CHIPS}; } catch(e){ /* fall through to local fallback */ }
+  }
+  return {id:'unknown', text:'I’m not sure I understood that one, but I’d love to help. I can answer questions about careers (choosing a field, subjects, APS, TVET vs university, learnerships, funding, CV and interview tips) and about using CareerConnect SA (signing up, uploading, matches, applications, employers). Could you rephrase, or pick a topic below?',
+    chips:CHAT_DEFAULT_CHIPS};
+}
+
+/* ================= chat window ================= */
+function setChatChips(list){
+  const box = document.getElementById('ccChatQuick'); if(!box) return;
+  box.innerHTML = '';
+  (list||CHAT_DEFAULT_CHIPS).slice(0,7).forEach(t=>{
+    const b = document.createElement('button'); b.type='button'; b.textContent=t;
+    b.addEventListener('click', ()=>sendCareerQuick(t));
+    box.appendChild(b);
+  });
+}
 function toggleCareerChat(forceOpen){
   const panel=document.getElementById('ccChatPanel');
   const launcher=document.getElementById('ccChatLauncher');
@@ -1590,42 +2209,63 @@ function toggleCareerChat(forceOpen){
   launcher.setAttribute('aria-expanded',String(shouldOpen));
   if(shouldOpen){
     if(!careerChatWelcomed){
-      addCareerChatMessage('bot',"Hi there! 👋 Welcome to CareerConnect SA. I’m your friendly guide. I can help you create an account, upload your qualification, understand your matches, or track an application. What would you like help with?");
+      const c = chatCtx();
+      addCareerChatMessage('bot',`Hi${c.name?' '+c.name:' there'}! 👋 I’m your CareerConnect assistant. I can give career guidance — choosing a field, subjects, APS, TVET vs university, learnerships, bursaries, CV and interview tips — and answer any question about using this website. What would you like help with?`);
+      setChatChips(CHAT_DEFAULT_CHIPS);
       careerChatWelcomed=true;
     }
     setTimeout(()=>document.getElementById('ccChatInput')?.focus(),50);
   }
 }
+/* builds text with clickable https links, without ever using innerHTML */
+function fillChatBubble(el, text){
+  el.textContent = '';
+  String(text).split(/(https?:\/\/[^\s)]+[^\s).,;])/g).forEach(part=>{
+    if(/^https?:\/\//.test(part)){ const a=document.createElement('a'); a.href=part; a.target='_blank'; a.rel='noopener noreferrer'; a.textContent=part; el.appendChild(a); }
+    else if(part) el.appendChild(document.createTextNode(part));
+  });
+}
 function addCareerChatMessage(who,text){
-  const log=document.getElementById('ccChatMessages'); if(!log) return;
-  const msg=document.createElement('div'); msg.className='cc-chat-msg '+(who==='user'?'user':'bot'); msg.textContent=text;
+  const log=document.getElementById('ccChatMessages'); if(!log) return null;
+  const msg=document.createElement('div'); msg.className='cc-chat-msg '+(who==='user'?'user':'bot');
+  fillChatBubble(msg, text);
   log.appendChild(msg); log.scrollTop=log.scrollHeight;
+  return msg;
 }
-function sendCareerQuick(text){
-  addCareerChatMessage('user',text);
-  addCareerChatMessage('bot',careerChatReply(text));
+function setChatBusy(b){
+  chatBusy=b;
+  const input=document.getElementById('ccChatInput'); if(input) input.disabled=b;
+  document.querySelectorAll('#ccChatQuick button').forEach(x=>x.disabled=b);
 }
+async function handleChatText(text){
+  if(chatBusy) return;
+  const shown = text.replace(/\b\d{13}\b/g,'•••••••••••••');           // never display a typed ID number
+  addCareerChatMessage('user', shown);
+  chatState.history.push({role:'user', content:ID_RE.test(text)?'[hidden]':text});
+  setChatBusy(true);
+  const typing = addCareerChatMessage('bot','…');
+  if(typing) typing.classList.add('typing');
+  let res;
+  try { res = await careerChatReply(text); }
+  catch(e){ res = {text:'Sorry, something went wrong on my side. Please try again.', chips:CHAT_DEFAULT_CHIPS}; }
+  await new Promise(r=>setTimeout(r,250));
+  if(typing){ typing.classList.remove('typing'); fillChatBubble(typing, res.text); }
+  chatState.history.push({role:'assistant', content:res.text});
+  chatState.lastId = res.id||null;
+  setChatChips(res.chips);
+  setChatBusy(false);
+  const log=document.getElementById('ccChatMessages'); if(log) log.scrollTop=log.scrollHeight;
+  document.getElementById('ccChatInput')?.focus();
+}
+function sendCareerQuick(text){ handleChatText(text); }
 function sendCareerChat(event){
   event.preventDefault();
   const input=document.getElementById('ccChatInput'); const text=(input.value||'').trim();
   if(!text) return;
-  addCareerChatMessage('user',text); input.value='';
-  addCareerChatMessage('bot',careerChatReply(text));
+  input.value='';
+  handleChatText(text);
 }
-function careerChatReply(raw){
-  const q=String(raw||'').toLowerCase();
-  if(/hello|hi|hey|good morning|good afternoon|good evening/.test(q)) return "Hi! 😊 Glad you're here. Are you looking for a job, exploring study options, or registering as an employer? You can ask me anything about using the website.";
-  if(/register|sign up|create account|get started|new account/.test(q)) return "Getting started is easy! Click ‘Get Started — It’s Free’ or ‘Sign Up’ at the top, choose whether you’re a candidate or an employer, then complete the form. If you already have an account, choose Log In.";
-  if(/log ?in|password|forgot/.test(q)) return "To access your account, click ‘Log In’ in the top navigation or hero section and enter your email and password. This demo currently doesn’t include password reset emails, so don’t use a real or sensitive password.";
-  if(/upload|document|qualification|certificate|matric|grade 12|cv|results/.test(q)) return "To upload your qualification, create or log in to a candidate account, open the Upload Documents area, choose your file, and follow the consent prompt. You need at least one uploaded document before you can find matches. Use a readable PDF or supported document/image file.";
-  if(/match|percentage|score|chance|recommend|opportunit/.test(q)) return "Your matches are suggested using the qualification and career field in your profile, plus readable text from your uploaded document when available. The percentage is an estimated profile-fit score—not a guaranteed chance of being hired or admitted. Always check the opportunity’s official requirements.";
-  if(/apply|application|employer feedback|status|accepted|declined|pending/.test(q)) return "Open your matching opportunities and choose Apply on a vacancy posted by a company. You can check application status and employer feedback in your candidate profile. Employers can review applications and share feedback through their company area.";
-  if(/company|employer|vacancy|post a job|job listing/.test(q)) return "If you’re an employer, create an account and choose the employer/company role. In the company area, you can post a vacancy, view applicants, update application status, and leave feedback. This standalone demo stores data in this browser, so it isn’t yet a shared live service between different devices.";
-  if(/email|notification|notify/.test(q)) return "The prototype shows notifications inside the website when available. Actual email delivery needs a secure backend and email provider; this HTML-only demo can’t send real emails by itself.";
-  if(/contact|human|support|help/.test(q)) return "I can help with common CareerConnect SA questions here. For an issue specific to your account, please describe what page you’re on and what you see. Avoid sharing passwords, ID numbers, or other sensitive information in chat.";
-  if(/thank|thanks|thx/.test(q)) return "You’re very welcome! 😊 I’m cheering you on. If you tell me what you’re trying to do, I’ll point you in the right direction.";
-  return "Thanks for your question! 😊 I can help with registration, uploading qualifications, finding matches, application statuses, employer vacancies, and notifications. Could you tell me a little more or choose one of the suggested topics? If it’s a very specific question, this built-in assistant may not know the answer yet.";
-}
+
 
 /* ---------- init ---------- */
 loadAppState();
