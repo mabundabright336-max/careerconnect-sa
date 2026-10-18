@@ -404,18 +404,21 @@
               <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">Your CIPC registration number. We verify it against the company register before you can post vacancies.</div>
             </div>
           </div>
-          <div class="field">
-            <label for="regOtpChannel">Send my confirmation code by</label>
-            <select id="regOtpChannel" onchange="toggleOtpChannel()">
-              <option value="email">Email</option>
-              <option value="sms">SMS (text message)</option>
-            </select>
-            <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">We'll send a 6-digit code to confirm it's really you before your account is created.</div>
+          <div class="field" id="regPhoneField">
+            <label for="regPhone" id="regPhoneLabel">Mobile number</label>
+            <div style="display:flex;gap:.5rem;align-items:stretch;">
+              <span style="display:flex;align-items:center;padding:0 .8rem;border:1px solid var(--line,#d9d9e3);border-radius:10px;background:rgba(0,0,0,.04);font-weight:600;white-space:nowrap;" aria-label="South Africa country code">🇿🇦 +27</span>
+              <input type="tel" id="regPhone" inputmode="tel" placeholder="82 123 4567" autocomplete="tel-national" required style="flex:1;min-width:0;">
+            </div>
+            <div id="regPhoneHint" style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">A South African mobile number, for example 82 123 4567 or 082 123 4567.</div>
           </div>
-          <div class="field hidden" id="regPhoneField">
-            <label for="regPhone">Mobile number</label>
-            <input type="tel" id="regPhone" inputmode="tel" placeholder="082 123 4567" autocomplete="tel">
-            <div style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">A South African mobile number. Standard SMS rates may apply.</div>
+          <div class="field" id="regOtpChannelField">
+            <label for="regOtpChannel">Send my confirmation code by</label>
+            <select id="regOtpChannel">
+              <option value="email">Email</option>
+              <option value="sms">SMS to my mobile number</option>
+            </select>
+            <div id="regOtpHint" style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">We'll send a 6-digit code to confirm it's really you before your account is created.</div>
           </div>
           <button type="submit" class="btn" style="width:100%;">Create Account</button>
           <p class="form-note">Already have an account? <a href="#" onclick="switchAuthTab('login');return false;" style="color:var(--indigo);font-weight:600;">Log in</a></p>
@@ -857,6 +860,7 @@ function toggleCompanyField(){
   idField.classList.toggle('hidden', isEmp);
   idInput.required = !isEmp;
   if(isEmp) idInput.value = '';
+  toggleOtpChannel();
 }
 
 /* ---------- password strength + confirmation ---------- */
@@ -901,8 +905,9 @@ function handleRegister(e){
   const rawId = document.getElementById('regIdNumber').value.trim();
   const parsedId = !isEmp ? parseSAID(rawId) : null;
   const regNo = isEmp ? normalizeRegNo(document.getElementById('regRegNo').value) : null;
-  const channel = document.getElementById('regOtpChannel').value === 'sms' ? 'sms' : 'email';
-  const phone = channel === 'sms' ? normalizeSAPhone(document.getElementById('regPhone').value) : null;
+  const channel = (!isEmp && document.getElementById('regOtpChannel').value === 'sms') ? 'sms' : 'email';
+  const rawPhone = document.getElementById('regPhone').value;
+  const phone = isEmp ? normalizeSALandline(rawPhone) : normalizeSAPhone(rawPhone);
 
   if(!role){ showAuthError('Please select what best describes you.'); return false; }
   const missing = pwMissing(password);
@@ -915,8 +920,8 @@ function handleRegister(e){
   if(isEmp && !regNo){ showAuthError('Enter a valid company registration number in the format 2015/123456/07.'); return false; }
   if(isEmp && USERS.some(u=>u.regNo===regNo)){ showAuthError('This registration number is already linked to another account.'); return false; }
   if(USERS.some(u=>u.email===email)){ showAuthError('An account with this email already exists — try logging in.'); return false; }
-  if(channel === 'sms' && !phone){ showAuthError('Enter a valid South African mobile number, for example 082 123 4567.'); return false; }
-  if(phone && USERS.some(u=>u.phone===phone)){ showAuthError('This mobile number is already linked to another account.'); return false; }
+  if(!phone){ showAuthError(isEmp ? 'Enter a valid South African company telephone number with its area code, for example 011 123 4567.' : 'Enter a valid South African mobile number, for example 082 123 4567.'); return false; }
+  if(phone && USERS.some(u=>u.phone===phone)){ showAuthError('This '+(isEmp?'telephone':'mobile')+' number is already linked to another account.'); return false; }
 
   const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: '', phone, contactVerified: false};
   // Nothing is saved yet: the account is only created once the code is confirmed.
@@ -939,7 +944,12 @@ const otpEl = id => document.getElementById(id);
 
 /* South African mobile numbers (06x, 07x, 08x) -> +27XXXXXXXXX, or null */
 function normalizeSAPhone(v){
-  const m = String(v||'').replace(/[\s\-().]/g,'').match(/^(?:\+27|0027|27|0)([678]\d{8})$/);
+  const m = String(v||'').replace(/[\s\-().]/g,'').match(/^(?:\+27|0027|27|0)?([678]\d{8})$/);
+  return m ? '+27' + m[1] : null;
+}
+/* South African landlines (area code 01x-05x) -> +27XXXXXXXXX, or null */
+function normalizeSALandline(v){
+  const m = String(v||'').replace(/[\s\-().]/g,'').match(/^(?:\+27|0027|27|0)?([1-5]\d{8})$/);
   return m ? '+27' + m[1] : null;
 }
 function maskDestination(channel, dest){
@@ -949,10 +959,21 @@ function maskDestination(channel, dest){
 }
 
 function toggleOtpChannel(){
-  const sms = otpEl('regOtpChannel').value === 'sms';
-  otpEl('regPhoneField').classList.toggle('hidden', !sms);
-  otpEl('regPhone').required = sms;
-  if(!sms) otpEl('regPhone').value = '';
+  const isEmp = document.getElementById('regRole').value === 'Employer/Company';
+  const sel = otpEl('regOtpChannel');
+  otpEl('regPhoneLabel').textContent = isEmp ? 'Company telephone number' : 'Mobile number';
+  otpEl('regPhone').placeholder = isEmp ? '11 123 4567' : '82 123 4567';
+  otpEl('regPhoneHint').textContent = isEmp
+    ? 'A South African landline with its area code, for example 11 123 4567 (Johannesburg) or 21 123 4567 (Cape Town). Mobile numbers are not accepted for companies.'
+    : 'A South African mobile number, for example 82 123 4567 or 082 123 4567.';
+  otpEl('regPhone').autocomplete = isEmp ? 'tel-national' : 'tel-national';
+  // landlines cannot receive SMS, so companies confirm by email
+  const smsOpt = sel.querySelector('option[value="sms"]');
+  smsOpt.disabled = isEmp; smsOpt.hidden = isEmp;
+  if(isEmp) sel.value = 'email';
+  otpEl('regOtpHint').textContent = isEmp
+    ? "We'll email a confirmation code to the address above. Your telephone number is kept on your company profile."
+    : "We'll send a 6-digit code to confirm it's really you before your account is created.";
 }
 
 function showOtpError(msg){
