@@ -240,6 +240,12 @@
   .otp-link:disabled{color:var(--ink-soft);cursor:default;font-weight:500;}
   .otp-banner{background:#FEF3C7;color:#92400E;border-radius:10px;padding:.7rem .9rem;font-size:.84rem;line-height:1.45;margin:.9rem 0;}
   .otp-ok{background:#D1FAE5;color:#065F46;border-radius:10px;padding:.6rem .9rem;font-size:.84rem;margin:.9rem 0;}
+  /* ===== clickable overview cards ===== */
+  .stat-link{font:inherit;text-align:left;width:100%;cursor:pointer;position:relative;transition:transform .15s,box-shadow .15s,border-color .15s;}
+  .stat-link .num,.stat-link .label{display:block;}
+  .stat-link:hover{transform:translateY(-2px);box-shadow:0 6px 18px rgba(79,70,229,.14);border-color:var(--indigo);}
+  .stat-link:focus-visible{outline:3px solid var(--indigo);outline-offset:2px;}
+  .stat-link .stat-go{position:absolute;right:1.2rem;top:50%;transform:translateY(-50%);font-weight:700;font-size:.85rem;color:var(--indigo);}
 </style>
 </head>
 <body>
@@ -412,14 +418,7 @@
             </div>
             <div id="regPhoneHint" style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">A South African mobile number, for example 82 123 4567 or 082 123 4567.</div>
           </div>
-          <div class="field" id="regOtpChannelField">
-            <label for="regOtpChannel">Send my confirmation code by</label>
-            <select id="regOtpChannel">
-              <option value="email">Email</option>
-              <option value="sms">SMS to my mobile number</option>
-            </select>
-            <div id="regOtpHint" style="font-size:.78rem;color:var(--ink-soft);margin-top:.35rem;">We'll send a 6-digit code to confirm it's really you before your account is created.</div>
-          </div>
+          <p id="regOtpHint" class="form-note" style="margin:0 0 1rem;">We'll email you to confirm your address before your account is created.</p>
           <button type="submit" class="btn" style="width:100%;">Create Account</button>
           <p class="form-note">Already have an account? <a href="#" onclick="switchAuthTab('login');return false;" style="color:var(--indigo);font-weight:600;">Log in</a></p>
         </form>
@@ -472,9 +471,9 @@
           <div><h2 id="overviewGreeting">Welcome back</h2><p>Here's where your career journey stands today.</p></div>
         </div>
         <div class="stat-row">
-          <div class="stat-card"><div class="num" id="statDocs">0</div><div class="label">Documents uploaded</div></div>
-          <div class="stat-card"><div class="num" id="statMatches">0</div><div class="label">Total matches found</div></div>
-          <div class="stat-card"><div class="num" id="statApps">0</div><div class="label">Applications submitted</div></div>
+          <button type="button" class="stat-card stat-link" onclick="openStat('docs')" aria-label="View documents uploaded"><span class="num" id="statDocs">0</span><span class="label">Documents uploaded</span><span class="stat-go" aria-hidden="true">View ›</span></button>
+          <button type="button" class="stat-card stat-link" onclick="openStat('matches')" aria-label="View matches found"><span class="num" id="statMatches">0</span><span class="label">Total matches found</span><span class="stat-go" aria-hidden="true">View ›</span></button>
+          <button type="button" class="stat-card stat-link" onclick="openStat('apps')" aria-label="View applications submitted"><span class="num" id="statApps">0</span><span class="label">Applications submitted</span><span class="stat-go" aria-hidden="true">View ›</span></button>
         </div>
         <div class="panel"><h3>Notifications & email alerts</h3><label style="display:flex;gap:.6rem;align-items:center;margin-bottom:1rem"><input type="checkbox" id="emailAlertsToggle" onchange="toggleEmailAlerts(this.checked)"> Email me about matching vacancies and application updates</label><div id="notificationList"></div><p class="form-note">Email delivery requires a connected backend/email service. In this standalone demo, updates are saved as in-app notifications.</p></div>
         <div class="panel" id="overviewNudge">
@@ -575,6 +574,7 @@
             </div>
             <p style="font-size:.78rem;color:var(--ink-soft);margin-top:.8rem;">Demo mode: files are processed in your browser and are not stored on a server.</p>
           </div>
+          <h4 id="uploadedHeading" style="margin:1.3rem 0 .6rem;">Uploaded documents (0)</h4>
           <div class="upload-list" id="uploadedList"></div>
         </div>
 
@@ -905,7 +905,7 @@ function handleRegister(e){
   const rawId = document.getElementById('regIdNumber').value.trim();
   const parsedId = !isEmp ? parseSAID(rawId) : null;
   const regNo = isEmp ? normalizeRegNo(document.getElementById('regRegNo').value) : null;
-  const channel = (!isEmp && document.getElementById('regOtpChannel').value === 'sms') ? 'sms' : 'email';
+  const channel = 'email';   // confirmation is always by email; the phone number is kept as contact information
   const rawPhone = document.getElementById('regPhone').value;
   const phone = isEmp ? normalizeSALandline(rawPhone) : normalizeSAPhone(rawPhone);
 
@@ -925,7 +925,7 @@ function handleRegister(e){
 
   const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: '', phone, contactVerified: false};
   // Nothing is saved yet: the account is only created once the code is confirmed.
-  pendingSignup = {user, idNumber: !isEmp ? parsedId.id : null, channel, destination: channel === 'sms' ? phone : email};
+  pendingSignup = {user, idNumber: !isEmp ? parsedId.id : null, channel, destination: email};
   document.getElementById('authError').style.display = 'none';
   beginOtp(false);
   return false;
@@ -959,21 +959,13 @@ function maskDestination(channel, dest){
 }
 
 function toggleOtpChannel(){
+  // Keeps the phone field's wording in step with the account type (name kept for the existing onchange hooks).
   const isEmp = document.getElementById('regRole').value === 'Employer/Company';
-  const sel = otpEl('regOtpChannel');
   otpEl('regPhoneLabel').textContent = isEmp ? 'Company telephone number' : 'Mobile number';
   otpEl('regPhone').placeholder = isEmp ? '11 123 4567' : '82 123 4567';
   otpEl('regPhoneHint').textContent = isEmp
     ? 'A South African landline with its area code, for example 11 123 4567 (Johannesburg) or 21 123 4567 (Cape Town). Mobile numbers are not accepted for companies.'
     : 'A South African mobile number, for example 82 123 4567 or 082 123 4567.';
-  otpEl('regPhone').autocomplete = isEmp ? 'tel-national' : 'tel-national';
-  // landlines cannot receive SMS, so companies confirm by email
-  const smsOpt = sel.querySelector('option[value="sms"]');
-  smsOpt.disabled = isEmp; smsOpt.hidden = isEmp;
-  if(isEmp) sel.value = 'email';
-  otpEl('regOtpHint').textContent = isEmp
-    ? "We'll email a confirmation code to the address above. Your telephone number is kept on your company profile."
-    : "We'll send a 6-digit code to confirm it's really you before your account is created.";
 }
 
 function showOtpError(msg){
@@ -998,23 +990,16 @@ async function firebaseBridge(){
 function firebaseMessage(err){
   const code = (err && err.code) || '';
   const known = {
-    'auth/invalid-phone-number': "That mobile number doesn't look right.",
-    'auth/missing-phone-number': 'Please enter your mobile number.',
-    'auth/invalid-verification-code': 'That code is not correct.',
-    'auth/code-expired': 'That code has expired. Please request a new one.',
-    'auth/session-expired': 'That code has expired. Please request a new one.',
+    'auth/invalid-email': "That email address doesn't look right.",
     'auth/too-many-requests': 'Too many attempts. Please wait a while and try again.',
-    'auth/quota-exceeded': 'We have reached the SMS limit for now. Please try again later.',
-    'auth/captcha-check-failed': 'The security check failed. Please try again.',
     'auth/network-request-failed': 'Network problem. Check your connection and try again.',
     'auth/unauthorized-domain': "This website's address is not in Firebase's authorized domains yet (see the README).",
-    'auth/operation-not-allowed': 'This sign-in method is switched off in Firebase, or SMS to South Africa is not allowed yet in its SMS region policy (see the README).',
-    'auth/billing-not-enabled': 'Firebase needs billing switched on before it can send real SMS (see the README).',
+    'auth/operation-not-allowed': 'Email/Password sign-in is switched off in Firebase. Turn it on under Authentication > Sign-in method (see the README).',
     'auth/weak-password': 'That password is too weak for Firebase. Please use a longer one.',
-    'cc/email-exists': 'This email already started verification with a different password. Use the same password as before, or verify by SMS instead.'
+    'cc/email-exists': 'This email already started verification with a different password. Use the same password as before, or use a different email address.'
   };
   if(code) console.error('Firebase error:', code, err && err.message);
-  if(known[code]) return known[code];
+  if(known[code]) return known[code] + ' [' + code + ']';   // the code in brackets helps when asking for support
   if(code) return 'Verification failed (' + code + '). Please try again.';
   return (err && err.message) || 'Verification failed. Please try again.';
 }
@@ -1028,10 +1013,6 @@ async function sendOtpRequest(channel, destination){
   if(VERIFY_METHOD === 'firebase'){
     const fb = await firebaseBridge();
     try{
-      if(channel === 'sms'){
-        await fb.sendSms(destination);              // Firebase texts a 6-digit code
-        return {otpId:'firebase', masked: maskDestination(channel, destination), resendAfterSec:60, mode:'code'};
-      }
       const r = await fb.startEmail(destination, pendingSignup.user.password);   // Firebase emails a verification LINK
       if(r.alreadyVerified) return {alreadyVerified:true, uid:r.uid};
       return {otpId:'firebase', masked: maskDestination(channel, destination), resendAfterSec:60, mode:'link'};
@@ -1065,8 +1046,7 @@ async function verifyOtpRequest(otpId, code){
         await fb.finish();
         return {ok:true, token:null, uid:r.uid};
       }
-      const r = await fb.confirmSms(code);
-      return {ok:true, token:null, uid:r.uid};
+      throw new Error('Please go back and start again.');
     }catch(err){
       if(err && err.notYet) throw err;
       throw new Error(firebaseMessage(err));
@@ -1130,7 +1110,7 @@ function showOtpPanel(isResend){
   const expiry = VERIFY_METHOD === 'firebase' ? 'It expires after a few minutes.' : 'It expires in 10 minutes.';
   otpEl('otpInfo').textContent = link
     ? 'We emailed a verification link to ' + otpState.masked + '. Open it (check your spam folder too), then come back here and press the button below.'
-    : 'We sent a 6-digit code by ' + (s.channel === 'sms' ? 'SMS' : 'email') + ' to ' + otpState.masked + '. ' + expiry;
+    : 'We sent a 6-digit code by email to ' + otpState.masked + '. ' + expiry;
   const banner = otpEl('otpBanner');
   if(otpState.demoCode){
     banner.textContent = "DEMO MODE — no message was sent. Your code is " + otpState.demoCode + ". (Set VERIFY_METHOD to 'firebase' or 'server' for real codes.)";
@@ -1250,6 +1230,15 @@ function showDashPage(page){
   if(page==='applications') refreshApplications();
   if(page==='overview') renderNotifications();
   if(page==='matches') refreshMatchesView();
+  if(page==='upload') refreshUploadList();
+}
+
+/* Overview cards: click one to open the page that shows it */
+function openStat(kind){
+  showDashPage(kind === 'docs' ? 'upload' : kind === 'matches' ? 'matches' : 'applications');
+  const target = kind === 'docs' ? document.getElementById('uploadedHeading') : null;
+  if(target && target.scrollIntoView) target.scrollIntoView({behavior:'smooth', block:'start'});
+  else window.scrollTo(0, 0);
 }
 
 function saveProfile(){
@@ -1433,7 +1422,16 @@ function refreshOverview(){
 function refreshUploadList(){
   const p = PROFILES[CURRENT.email];
   const list = document.getElementById('uploadedList');
+  const heading = document.getElementById('uploadedHeading');
+  if(heading) heading.textContent = 'Uploaded documents (' + p.docs.length + ')';
   list.innerHTML = '';
+  if(p.docs.length === 0){
+    const none = document.createElement('p');
+    none.className = 'form-note';
+    none.style.margin = '0';
+    none.textContent = 'No documents uploaded yet.';
+    list.appendChild(none);
+  }
   p.docs.forEach((d,i)=>{
     const row = document.createElement('div');
     row.className = 'upload-item';
@@ -2388,12 +2386,9 @@ goLanding();
 // PDF.js is used only in the browser; no document bytes are uploaded by this standalone prototype.
 </script>
 
-<!-- Firebase's invisible security check (reCAPTCHA) for SMS lives here -->
-<div id="recaptcha-container"></div>
-
 <script type="module">
   /* =====================================================================
-     FIREBASE SETTINGS (SMS codes + email verification)
+     FIREBASE SETTINGS (email verification)
      Paste YOUR web-app settings from the Firebase console:
        Project settings > General > Your apps > Web app > "SDK setup and configuration".
      These values are meant to be public. Your Firebase settings (authorized domains, SMS region
@@ -2416,30 +2411,6 @@ goLanding();
       const { initializeApp } = await import(SDK + '/firebase-app.js');
       const A = await import(SDK + '/firebase-auth.js');
       const auth = A.getAuth(initializeApp(FIREBASE_CONFIG));
-      let verifier = null, confirmation = null;
-
-      const clearVerifier = () => {
-        try { if (verifier) verifier.clear(); } catch (_) {}
-        verifier = null;
-        const box = document.getElementById('recaptcha-container');
-        if (box) box.innerHTML = '';
-      };
-
-      /* SMS: Firebase texts a 6-digit code to the phone */
-      bridge.sendSms = async (phone) => {
-        clearVerifier();
-        verifier = new A.RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
-        confirmation = await A.signInWithPhoneNumber(auth, phone, verifier);
-      };
-      bridge.confirmSms = async (code) => {
-        if (!confirmation) throw new Error('Please request a new code.');
-        const cred = await confirmation.confirm(code);
-        const uid = cred.user.uid;
-        await A.signOut(auth);
-        clearVerifier(); confirmation = null;
-        return { uid };
-      };
-
       /* Email: Firebase emails a verification LINK (it does not send typed codes by email) */
       bridge.startEmail = async (email, password) => {
         let user;
@@ -2462,7 +2433,6 @@ goLanding();
       };
       bridge.finish = async () => { await A.signOut(auth); };
       bridge.reset = async () => {
-        clearVerifier(); confirmation = null;
         try { await A.signOut(auth); } catch (_) {}
       };
     })();

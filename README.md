@@ -1,35 +1,31 @@
 # CareerConnect SA
 
-The website (`public/index.html`) plus optional server pieces. Sign-up confirmation can work three ways. Pick one with `VERIFY_METHOD` near the top of the page's script:
+The website (`public/index.html`) plus optional server pieces. Sign-up is confirmed **by email**. Choose how with `VERIFY_METHOD` near the top of the page's script:
 
 | `VERIFY_METHOD` | What the user gets | Needs |
 |---|---|---|
-| `'firebase'` (default) | **SMS:** a 6-digit code. **Email:** a verification link. | A free Firebase project. No server, works on Netlify or any static host. |
-| `'server'` | **SMS and email:** 6-digit codes sent by this project's own server (Twilio / Resend). | Netlify Functions (or `server.js`) plus provider accounts. |
+| `'firebase'` (default) | An email with a verification **link** to open. | A free Firebase project. No server, works on Netlify or any static host. |
+| `'server'` | An email with a 6-digit **code** sent by this project's own server (Resend). | Netlify Functions (or `server.js`) plus a Resend account. |
 | `'demo'` | Preview of the screens only. The code is shown on the page (not secure). | Nothing. |
 
-## Use Firebase for SMS and email confirmation
+SMS confirmation has been removed from the sign-up. The phone number is still collected as contact information (a mobile number for individuals, a landline for companies).
 
-**What users see**
-- **SMS:** Firebase texts a 6-digit code. The user types it into the page.
-- **Email:** Firebase emails a verification **link** (Firebase doesn't send typed codes by email). The user opens the link, returns to the page and presses "I've verified my email". The page also notices on its own after a few seconds.
-- The account is only created after this step succeeds.
+## Use Firebase for email confirmation
 
-**Set it up (about 15 minutes)**
+**What users see:** Firebase emails a verification link. The user opens it, returns to the page and presses "I've verified my email" (the page also notices on its own after a few seconds). The account is only created after that.
+
+**Set it up (about 10 minutes, free)**
 1. Go to console.firebase.google.com and add a project.
-2. Project settings → General → Your apps → add a **Web app** (the `</>` icon). Copy the four values (`apiKey`, `authDomain`, `projectId`, `appId`) into `FIREBASE_CONFIG` in the `<script type="module">` block at the bottom of `public/index.html`. These values are meant to be public.
-3. Authentication → Get started → Sign-in method: enable **Phone** and **Email/Password**.
+2. Project settings → General → Your apps → add a **Web app** (the `</>` icon). Copy `apiKey`, `authDomain`, `projectId` and `appId` into `FIREBASE_CONFIG` in the `<script type="module">` block at the bottom of `public/index.html`. These values are meant to be public.
+3. Authentication → Get started → Sign-in method: enable **Email/Password** (only the first switch, not "Email link"). Save.
 4. Authentication → Settings → **Authorized domains**: add your Netlify address (for example `yoursite.netlify.app`) and any custom domain.
-5. **SMS needs billing.** Firebase's pricing page lists phone authentication as not available on the free Spark plan and billed per SMS on the pay-as-you-go (Blaze) plan. Upgrade the project (eligible accounts may get free credit), set a budget alert, and check the price for South Africa. **Email verification works without any of this**, so you can start with email only.
-6. **SMS region policy:** Authentication → Settings → **SMS region policy**: allow South Africa. New Firebase projects block every region by default, so until you do, sending fails with "operation not allowed".
-7. **Test without sending real SMS:** Sign-in method → Phone → **Phone numbers for testing**. Add a made-up number such as `+27 82 000 0001` with the code `123456`, then use that number on your site. No SMS is sent. The project may still need billing switched on first.
-8. **Email wording:** Authentication → Templates → "Email address verification" (sender name, subject, text). By default the email comes from a Firebase address and can land in spam, so tell users to check spam. Firebase also lets you use your own sender domain.
-9. Push to GitHub. Netlify redeploys and it works.
+5. Optional: Authentication → Templates → "Email address verification" to change the sender name, subject and wording. The email comes from a Firebase address by default and can land in spam, so tell users to check there.
+6. Push to GitHub. Netlify redeploys and it works.
 
 **Good to know**
 - Email sign-ups create a Firebase user with the password the person chose (Firebase stores it hashed). The page still uses its own login for now.
 - Each new account saves a `firebaseUid` linking it to its Firebase user.
-- Firebase proves the email or number belongs to the person at sign-up. Accounts still live in each visitor's browser, so someone editing their own browser could skip the step. To enforce it, move login and accounts to Firebase Authentication plus a database.
+- Firebase proves the email belongs to the person at sign-up. Accounts still live in each visitor's browser, so someone editing their own browser could skip the step. To enforce it, move login and accounts to Firebase Authentication plus a database.
 
 ## Option: your own codes on Netlify (`VERIFY_METHOD = 'server'`)
 
@@ -41,12 +37,11 @@ Skip this whole part if you use Firebase.
    - `OTP_SECRET`: a long random value. Make one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
    - `NODE_ENV` = `production`
    - Email: `RESEND_API_KEY` and `EMAIL_FROM`
-   - SMS: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM` (or `TWILIO_MESSAGING_SERVICE_SID`)
 3. **Deploy again.** Pushing to GitHub does this. After adding or changing variables, also use Deploys → Trigger deploy.
 4. **Check it:** open `https://YOURSITE.netlify.app/api/health`. You want `otpSecretSet: true`, `storage: "ok"`, and `provider` next to the channel you set up.
 5. **Try a sign-up** on your site.
 
-**Testing before you have email/SMS keys:** set `NODE_ENV` to `development` in Netlify. Codes are then written to the function log (Netlify → Logs → Functions), not sent and not shown on the website. Switch back to `production` afterwards.
+**Testing before you have an email key:** set `NODE_ENV` to `development` in Netlify. Codes are then written to the function log (Netlify → Logs → Functions), not sent and not shown on the website. Switch back to `production` afterwards.
 
 How it fits Netlify: the codes are kept in Netlify Blobs (built in, no extra account), and Netlify itself limits how often one IP can call the endpoints (5 sends per 3 minutes, 20 checks per minute).
 
@@ -55,19 +50,18 @@ How it fits Netlify: the codes are kept in Netlify Blobs (built in, no extra acc
 1. Install Node.js 20.12 or newer. In this folder run `npm install`.
 2. Optional: copy `.env.example` to `.env` and set `OTP_SECRET`.
 3. `npm start`, then open http://localhost:3000 (not the `index.html` file).
-4. With no email/SMS keys the code is printed in the terminal. `npm test` runs the automated tests.
+4. With no email key the code is printed in the terminal. `npm test` runs the automated tests.
 
 `VERIFY_METHOD = 'demo'` in `public/index.html` previews the screens with no server at all (the code is shown on screen: not secure, previews only).
 
 ## Sending real codes
 
-- **SMS:** Twilio. Trial accounts can usually only text numbers you've verified, and sender rules differ by country, so check Twilio's South Africa guidance and geographic permissions.
 - **Email:** Resend. `EMAIL_FROM` must use a domain you've verified in Resend (Resend's shared test sender only emails your own account address).
-- **Another provider** (e.g. a South African SMS gateway): add one function in `senders.js`.
+- **Another email provider:** add one function in `senders.js`.
 
 ## "We couldn't send your code"
 
-The visitor only sees that generic message. The real reason is in the logs: the terminal running `npm start`, or on Netlify, Logs → Functions (look for `[otp] sending failed:`). Also check `/api/health`. Common causes: `NODE_ENV=production` with no provider keys; placeholder keys left in; Resend domain not verified; Twilio trial number not verified; variables changed but not redeployed.
+The visitor only sees that generic message. The real reason is in the logs: the terminal running `npm start`, or on Netlify, Logs → Functions (look for `[otp] sending failed:`). Also check `/api/health`. Common causes: `NODE_ENV=production` with no provider keys; placeholder keys left in; Resend domain not verified; variables changed but not redeployed.
 
 If the page says the service "wasn't found", the `netlify` folder or `netlify.toml` isn't in the repo yet, or the site hasn't been redeployed.
 
@@ -82,4 +76,4 @@ If the page says the service "wasn't found", the `netlify` folder or `netlify.to
 
 - **Accounts must move to a server database.** Today accounts, passwords and the "confirmed" flag live in each visitor's own browser, so the code check only stops honest users (someone editing their own browser could skip it), passwords are stored in plain text there, and an employer on one device can't see applications made on another. Production needs server-side accounts with hashed passwords (argon2 or bcrypt).
 - Small leftover records (one per address/number, no codes inside) stay in Blobs; they can be cleared from the Netlify Blobs page.
-- Consider a CAPTCHA on sign-up to limit SMS-cost abuse, and add a privacy notice covering phone numbers (POPIA).
+- Consider a CAPTCHA on sign-up to limit abuse, and add a privacy notice covering phone numbers (POPIA).
