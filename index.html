@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
+<meta name="google-site-verification" content="kmM586JpG77OlqGj1k1Fc1xmvIn800vNRWS5dUmfkfw" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CareerConnect SA — Career & Job Matching Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -797,24 +798,331 @@ let vacSeq = 1, appSeq = 1;
 let activeBizFilter = 'Pending';
 const STORAGE_KEY = 'careerconnect_sa_demo_v2';
 function saveAppState(){
+  if(CLOUD){ cloudQueueSave(); return; }      // database mode: Supabase is the store (nothing sensitive in the browser)
   try { localStorage.setItem(STORAGE_KEY, JSON.stringify({USERS, PROFILES, VACANCIES, vacSeq, appSeq})); } catch(e) { console.warn('Could not save demo state', e); }
 }
 function loadAppState(){
+  if(CLOUD){ try{ localStorage.removeItem(STORAGE_KEY); }catch(_){} return; }   // drop the old browser-only copy (it held plain-text passwords)
   try {
     const d = JSON.parse(localStorage.getItem(STORAGE_KEY) || 'null');
     if(d){ USERS=d.USERS||[]; PROFILES=d.PROFILES||{}; VACANCIES=d.VACANCIES||[]; vacSeq=d.vacSeq||1; appSeq=d.appSeq||1; }
   } catch(e) { console.warn('Could not load demo state', e); }
 }
 function notifyUser(email, subject, message){
-  const p=PROFILES[email]; if(!p) return;
-  p.notifications=p.notifications||[];
-  p.notifications.unshift({id:'n'+Date.now()+Math.random().toString(16).slice(2), subject, message, date:new Date().toLocaleString('en-ZA'), read:false});
-  p.notifications=p.notifications.slice(0,50);
-  saveAppState();
+  const p=PROFILES[email];
+  if(!CLOUD && !p) return;
+  const n={id:newId('n'), subject, message, date:new Date().toLocaleString('en-ZA'), read:false};
+  if(p){
+    p.notifications=p.notifications||[];
+    p.notifications.unshift(n);
+    p.notifications=p.notifications.slice(0,50);
+  }
+  if(CLOUD){ cloudRun(dbInsert('cc_notifications',{id:n.id, email, subject, message, date_label:n.date, read:false})); }   // reaches people who are not on this screen
+  else saveAppState();
 }
 
 function emptyProfile(){
   return { docs:[], qualLevel:null, field:null, matches:null, applications:[], notifications:[], emailAlerts:true, extractedText:'', extractedFile:'', idNumber:'', idDoc:null };
+}
+
+
+/* ======================================================================
+   SUPABASE DATABASE
+   Firebase still handles sign-up and login. Supabase stores the site's data:
+   users, profiles, ID details, vacancies, applications and notifications.
+   1) Run supabase_schema.sql once in Supabase > SQL Editor.
+   2) Paste your Project URL and anon (public) key below
+      (Supabase > Project Settings > API).
+   Until both are filled in the site keeps working as before, saving in this browser only.
+   ====================================================================== */
+const SUPABASE_URL = 'PASTE_SUPABASE_PROJECT_URL';       // e.g. https://abcdefgh.supabase.co
+const SUPABASE_ANON_KEY = 'PASTE_SUPABASE_ANON_KEY';     // the long "anon public" key (never the service_role key)
+const CLOUD = /^https:\/\/\S+$/.test(SUPABASE_URL) && SUPABASE_ANON_KEY.length > 30 && !/PASTE_/.test(SUPABASE_URL + SUPABASE_ANON_KEY);
+
+const sbq = encodeURIComponent;
+const sbBase = () => SUPABASE_URL.replace(/\/+$/, '');
+const sbAuthHeaders = () => ({apikey: SUPABASE_ANON_KEY, Authorization: 'Bearer ' + SUPABASE_ANON_KEY});
+const sbList = arr => sbq('(' + arr.map(v => '"' + String(v).replace(/"/g, '') + '"').join(',') + ')');
+const eqs = v => 'eq.' + sbq(v);
+const newId = prefix => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+
+async function sbRest(method, path, body, prefer){
+  let res;
+  try{
+    res = await fetch(sbBase() + '/rest/v1/' + path, {
+      method, headers: Object.assign({'Content-Type':'application/json'}, sbAuthHeaders(), prefer ? {Prefer: prefer} : {}),
+      body: body === undefined ? undefined : JSON.stringify(body)
+    });
+  }catch(_){ const e = new Error('Could not reach the database. Check your internet connection and try again.'); e.network = true; throw e; }
+  if(!res.ok){
+    let j = null; try{ j = await res.json(); }catch(_){}
+    const e = new Error((j && (j.message || j.error)) || ('Database error (' + res.status + ')'));
+    e.code = j && j.code; e.status = res.status; throw e;
+  }
+  const t = await res.text();
+  return t ? JSON.parse(t) : null;
+}
+const dbGet    = (t, query)       => sbRest('GET', t + '?' + query);
+const dbInsert = (t, row)         => sbRest('POST', t, row, 'return=minimal');
+const dbUpsert = (t, row, key)    => sbRest('POST', t + '?on_conflict=' + key, row, 'resolution=merge-duplicates,return=minimal');
+const dbPatch  = (t, filter, obj) => sbRest('PATCH', t + '?' + filter, obj, 'return=minimal');
+const dbDelete = (t, filter)      => sbRest('DELETE', t + '?' + filter, undefined, 'return=minimal');
+
+/* plain-English version of a database error */
+function cloudMsg(err){
+  const m = String((err && err.message) || '');
+  if(err && err.network) return m;
+  if(err && (err.code === '23505' || /duplicate key|unique constraint/i.test(m))){
+    if(/id_number/i.test(m)) return 'This ID number is already linked to another account.';
+    if(/phone/i.test(m)) return 'This phone number is already linked to another account.';
+    if(/reg_no/i.test(m)) return 'This registration number is already linked to another account.';
+    if(/cc_applications/i.test(m)) return 'You have already applied for this vacancy.';
+    return 'An account with this email already exists — try logging in.';
+  }
+  if(err && (err.status === 404 || /does not exist|schema cache|relation/i.test(m))) return "The database tables aren't set up yet. Run supabase_schema.sql in Supabase > SQL Editor, then try again.";
+  if(err && (err.status === 401 || err.status === 403)) return 'The database refused the request. Check the Supabase URL and anon key, and that supabase_schema.sql was run.';
+  return 'We could not reach the database (' + m + ').';
+}
+function cloudWarn(err){
+  console.error('Supabase error:', err);
+  let b = document.getElementById('cloudBanner');
+  if(!b){
+    b = document.createElement('div'); b.id = 'cloudBanner'; b.setAttribute('role', 'alert');
+    b.style.cssText = 'position:fixed;left:50%;transform:translateX(-50%);top:12px;z-index:9999;max-width:min(92vw,560px);background:#7c2d12;color:#fff;padding:.7rem 1rem;border-radius:10px;font-size:.88rem;box-shadow:0 6px 20px rgba(0,0,0,.25);';
+    document.body.appendChild(b);
+  }
+  b.textContent = 'Not saved: ' + (typeof err === 'string' ? err : cloudMsg(err));
+  b.style.display = 'block';
+  clearTimeout(cloudWarn.t); cloudWarn.t = setTimeout(()=>{ b.style.display = 'none'; }, 9000);
+}
+
+/* fire-and-forget write that is tracked (so a refresh never runs half-way through one) */
+let cloudPending = 0;
+function cloudRun(promise, onFail){
+  cloudPending++;
+  return Promise.resolve(promise).catch(err=>{ cloudWarn(err); if(onFail) try{ onFail(err); }catch(_){} }).finally(()=>{ cloudPending--; });
+}
+
+/* ----- row <-> object mapping ----- */
+const userRow = u => ({email:u.email, name:u.name, role:u.role, company:u.company||null, reg_no:u.regNo||null, phone:u.phone||null,
+  verification:u.verification||null, verify_note:u.verifyNote||'', contact_verified:!!u.contactVerified, verified_via:u.verifiedVia||null,
+  verified_at:u.verifiedAt||null, firebase_uid:u.firebaseUid||null});
+const rowUser = r => ({name:r.name, email:r.email, role:r.role, company:r.company, regNo:r.reg_no, phone:r.phone,
+  verification:r.verification, verifyNote:r.verify_note||'', contactVerified:!!r.contact_verified, verifiedVia:r.verified_via,
+  verifiedAt:r.verified_at, firebaseUid:r.firebase_uid});
+const vacRow = v => ({id:v.id, owner_email:v.ownerEmail, company:v.company, title:v.title, field:v.field, location:v.location,
+  description:v.desc||'', closed:!!v.closed, date_label:v.date});
+const rowVac = r => ({id:r.id, ownerEmail:r.owner_email, company:r.company, title:r.title, field:r.field, location:r.location,
+  desc:r.description||'', closed:!!r.closed, date:r.date_label});
+const appRow = (a, email) => ({id:a.id, candidate_email:email, vacancy_id:a.vacancyId||null, name:a.name, type:a.type,
+  status:a.status, date_label:a.date, ts:a.ts, feedback:a.feedback||''});
+const rowApp = r => ({id:r.id, name:r.name, type:r.type, status:r.status, date:r.date_label, ts:Number(r.ts)||0,
+  vacancyId:r.vacancy_id, feedback:r.feedback||''});
+const rowNote = r => ({id:r.id, subject:r.subject, message:r.message, date:r.date_label, read:!!r.read});
+const profileRow = (email, p) => ({email, qual_level:p.qualLevel||null, field:p.field||null, docs:p.docs||[],
+  email_alerts:p.emailAlerts!==false, extracted_file:p.extractedFile||'', extracted_text:p.extractedText||'',
+  matches:p.matches||null, updated_at:new Date().toISOString()});
+const idRow = (email, p) => ({email, id_number:p.idNumber||null, doc_path:(p.idDoc&&p.idDoc.path)||null,
+  doc_name:(p.idDoc&&p.idDoc.name)||null, doc_type:(p.idDoc&&p.idDoc.type)||null, doc_size:(p.idDoc&&p.idDoc.size)||null,
+  updated_at:new Date().toISOString()});
+
+/* ----- saving the signed-in user's own data ----- */
+let cloudSaveTimer = null, cloudSaving = Promise.resolve();
+async function cloudSaveOwnNow(u, p){
+  await dbUpsert('cc_users', userRow(u), 'email');
+  if(!isEmployer(u) && p){
+    await dbUpsert('cc_profiles', profileRow(u.email, p), 'email');
+    await dbUpsert('cc_id_details', idRow(u.email, p), 'email');
+  }
+}
+function cloudQueueSave(){ clearTimeout(cloudSaveTimer); cloudSaveTimer = setTimeout(cloudFlush, 500); }
+function cloudFlush(){
+  clearTimeout(cloudSaveTimer); cloudSaveTimer = null;
+  const u = CURRENT, p = u && PROFILES[u.email];
+  if(!u) return cloudSaving;
+  cloudSaving = cloudSaving.catch(()=>{}).then(()=>cloudSaveOwnNow(u, p)).catch(cloudWarn);
+  return cloudSaving;
+}
+
+/* ----- creating the account (after Firebase confirmed the email) ----- */
+async function cloudCheckDuplicates({email, phone, regNo, idNumber}){
+  const none = Promise.resolve([]);
+  const [e, ph, rn, idn] = await Promise.all([
+    dbGet('cc_users', 'select=email&limit=1&email=' + eqs(email)),
+    phone ? dbGet('cc_users', 'select=email&limit=1&phone=' + eqs(phone)) : none,
+    regNo ? dbGet('cc_users', 'select=email&limit=1&reg_no=' + eqs(regNo)) : none,
+    idNumber ? dbGet('cc_id_details', 'select=email&limit=1&id_number=' + eqs(idNumber)) : none
+  ]);
+  if(e.length)   return 'An account with this email already exists — try logging in.';
+  if(idn.length) return 'This ID number is already linked to another account.';
+  if(rn.length)  return 'This registration number is already linked to another account.';
+  if(ph.length)  return 'This phone number is already linked to another account.';
+  return '';
+}
+async function cloudCreateAccount(user, idNumber){
+  await dbInsert('cc_users', userRow(user));
+  if(isEmployer(user)) return;
+  try{
+    await dbInsert('cc_profiles', profileRow(user.email, emptyProfile()));
+    await dbInsert('cc_id_details', {email:user.email, id_number:idNumber||null});
+  }catch(err){
+    try{ await dbDelete('cc_users', 'email=' + eqs(user.email)); }catch(_){}    // undo, so they can try again
+    throw err;
+  }
+}
+
+/* ----- ID document files (private storage bucket) ----- */
+const sbObjectUrl = path => sbBase() + '/storage/v1/object/id-documents/' + path.split('/').map(sbq).join('/');
+async function cloudUploadId(file){
+  const safe = file.name.replace(/[^A-Za-z0-9._-]/g, '_').slice(-80) || 'id-document';
+  const folder = (window.crypto && crypto.randomUUID) ? crypto.randomUUID() : newId('f');
+  const path = folder + '/' + safe;
+  let res;
+  try{ res = await fetch(sbObjectUrl(path), {method:'POST', headers:Object.assign({'Content-Type': file.type || 'application/octet-stream'}, sbAuthHeaders()), body:file}); }
+  catch(_){ const e = new Error('Could not reach the database. Check your internet connection and try again.'); e.network = true; throw e; }
+  if(!res.ok) throw new Error('Could not upload the ID document (' + res.status + '). Check that supabase_schema.sql was run.');
+  return path;
+}
+async function cloudDeleteId(path){
+  try{ await fetch(sbObjectUrl(path), {method:'DELETE', headers:sbAuthHeaders()}); }catch(_){}
+}
+async function cloudSignedUrl(path){
+  try{
+    const res = await fetch(sbBase() + '/storage/v1/object/sign/id-documents/' + path.split('/').map(sbq).join('/'),
+      {method:'POST', headers:Object.assign({'Content-Type':'application/json'}, sbAuthHeaders()), body:JSON.stringify({expiresIn:3600})});
+    if(!res.ok) return null;
+    const j = await res.json();
+    return j.signedURL ? sbBase() + '/storage/v1' + j.signedURL : null;
+  }catch(_){ return null; }
+}
+
+/* ----- loading data after login ----- */
+function cloudLoadNotes(email){
+  return dbGet('cc_notifications', 'select=*&order=created_at.desc&limit=50&email=' + eqs(email)).then(r=>r.map(rowNote));
+}
+async function cloudLoadAccount(email){
+  const rows = await dbGet('cc_users', 'select=*&limit=1&email=' + eqs(email));
+  if(!rows.length) return null;
+  const user = rowUser(rows[0]);
+  const emp = isEmployer(user);
+  const [prof, idr, apps, notes] = await Promise.all([
+    emp ? [] : dbGet('cc_profiles', 'select=*&email=' + eqs(email)),
+    emp ? [] : dbGet('cc_id_details', 'select=*&email=' + eqs(email)),
+    emp ? [] : dbGet('cc_applications', 'select=*&order=ts.asc&candidate_email=' + eqs(email)),
+    cloudLoadNotes(email)
+  ]);
+  const p = emptyProfile();
+  if(prof[0]) Object.assign(p, {qualLevel:prof[0].qual_level, field:prof[0].field, docs:prof[0].docs||[], emailAlerts:prof[0].email_alerts!==false,
+    extractedFile:prof[0].extracted_file||'', extractedText:prof[0].extracted_text||'', matches:prof[0].matches||null});
+  if(idr[0]){
+    p.idNumber = idr[0].id_number || '';
+    if(idr[0].doc_path){
+      p.idDoc = {name:idr[0].doc_name||'ID document', type:idr[0].doc_type||'', size:Number(idr[0].doc_size)||0, path:idr[0].doc_path};
+      p.idDoc.url = await cloudSignedUrl(idr[0].doc_path);
+    }
+  }
+  p.applications = apps.map(rowApp);
+  p.notifications = notes;
+  USERS = [user]; PROFILES = {}; PROFILES[email] = p;
+  await cloudLoadShared(user);
+  return user;
+}
+/* vacancies (everyone sees them) and, for a company, the people who applied to it */
+async function cloudLoadShared(user){
+  const vacs = (await dbGet('cc_vacancies', 'select=*&order=created_at.asc')).map(rowVac);
+  if(!isEmployer(user)){ VACANCIES = vacs; return; }
+  // fetch everything first, then swap it in all at once so the screen never sees a half-loaded state
+  const ids = vacs.filter(v=>v.ownerEmail===user.email).map(v=>v.id);
+  let arows = [], urows = [], prows = [];
+  if(ids.length){
+    arows = await dbGet('cc_applications', 'select=*&vacancy_id=in.' + sbList(ids));
+    const emails = [...new Set(arows.map(r=>r.candidate_email))];
+    if(emails.length){
+      [urows, prows] = await Promise.all([
+        dbGet('cc_users', 'select=email,name,role&email=in.' + sbList(emails)),
+        dbGet('cc_profiles', 'select=email,qual_level,field,docs&email=in.' + sbList(emails))    // no ID details, no CV text
+      ]);
+    }
+  }
+  const users = [USERS.find(u=>u.email===user.email) || user], profiles = {};
+  if(PROFILES[user.email]) profiles[user.email] = PROFILES[user.email];
+  urows.forEach(r=>{
+    users.push({name:r.name, email:r.email, role:r.role});
+    const pr = prows.find(x=>x.email===r.email), p = emptyProfile();
+    if(pr){ p.qualLevel = pr.qual_level; p.field = pr.field; p.docs = pr.docs || []; }
+    profiles[r.email] = p;
+  });
+  arows.forEach(r=>{ const p = profiles[r.candidate_email]; if(p) p.applications.push(rowApp(r)); });
+  VACANCIES = vacs; USERS = users; PROFILES = profiles;
+}
+
+/* ----- keeping the screen up to date (new applications, status, feedback, vacancies) ----- */
+let cloudTimer = null, cloudBusy = false, cloudShownSig = '';
+function cloudSignature(){
+  const mine = CURRENT && PROFILES[CURRENT.email];
+  return JSON.stringify([
+    VACANCIES.map(v=>v.id + (v.closed ? 'x' : '')),
+    Object.keys(PROFILES).sort().map(e=>(PROFILES[e].applications||[]).map(a=>a.id + a.status + a.feedback)),
+    mine ? (mine.notifications||[]).map(n=>n.id) : []
+  ]);
+}
+async function cloudRefresh(){
+  if(!CLOUD || !CURRENT || cloudBusy || cloudPending > 0) return;
+  cloudBusy = true;
+  const me = CURRENT;
+  try{
+    await cloudSaving.catch(()=>{});
+    const p = PROFILES[me.email];
+    const notes = await cloudLoadNotes(me.email);
+    if(!isEmployer(me)){
+      const apps = (await dbGet('cc_applications', 'select=*&order=ts.asc&candidate_email=' + eqs(me.email))).map(rowApp);
+      if(CURRENT === me && cloudPending === 0 && p){ p.applications = apps; }
+    }
+    if(CURRENT !== me) return;
+    if(p) p.notifications = notes;
+    await cloudLoadShared(me);
+    if(CURRENT === me && cloudSignature() !== cloudShownSig) cloudRerender();
+  }catch(err){ console.warn('Refresh failed', err); }
+  finally{ cloudBusy = false; }
+}
+function cloudRerender(){
+  if(!CURRENT) return;
+  const t = document.activeElement;
+  if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;      // never disturb someone who is typing
+  cloudShownSig = cloudSignature();
+  if(isEmployer(CURRENT)){ if(!document.getElementById('view-business').classList.contains('hidden')) refreshBiz(); }
+  else if(!document.getElementById('view-dashboard').classList.contains('hidden')){ refreshApplications(); renderNotifications(); refreshOverview(); }
+}
+function cloudStartTimer(){
+  cloudStopTimer();
+  cloudShownSig = cloudSignature();
+  cloudTimer = setInterval(()=>{ if(!document.hidden) cloudRefresh(); }, 30000);
+}
+function cloudStopTimer(){ clearInterval(cloudTimer); cloudTimer = null; }
+
+/* ----- logging in: Firebase checks the password, Supabase supplies the data ----- */
+async function cloudLogin(email, password){
+  const btn = document.querySelector('#loginForm button[type="submit"]');
+  if(btn) btn.disabled = true;
+  document.getElementById('authError').style.display = 'none';
+  let fb = null;
+  try{
+    fb = await firebaseBridge();
+    let r;
+    try{ r = await fb.signIn(email, password); }catch(err){ throw new Error(firebaseMessage(err)); }
+    if(!r.emailVerified) throw new Error("Your email address isn't verified yet. Choose Create Account again with the same email and password and we'll send you a fresh verification link.");
+    let user;
+    try{ user = await cloudLoadAccount(email); }catch(err){ throw new Error(cloudMsg(err)); }
+    if(!user) throw new Error("You're registered, but we couldn't find your CareerConnect profile. Choose Create Account again with the same email and password to finish setting it up.");
+    CURRENT = user;
+    cloudStartTimer();
+    enterApp();
+  }catch(err){
+    showAuthError(err.message);
+  }finally{
+    if(fb && fb.reset) fb.reset();       // we only needed Firebase to check the password
+    if(btn) btn.disabled = false;
+  }
 }
 
 /* ---------- navigation between the top-level views ---------- */
@@ -925,8 +1233,19 @@ function handleRegister(e){
 
   const user = {name, email, password, role, company: isEmp ? company : null, regNo, verification: null, verifyNote: '', phone, contactVerified: false};
   // Nothing is saved yet: the account is only created once the code is confirmed.
-  pendingSignup = {user, idNumber: !isEmp ? parsedId.id : null, channel, destination: email};
+  const pending = {user, idNumber: !isEmp ? parsedId.id : null, channel, destination: email};
   document.getElementById('authError').style.display = 'none';
+  if(CLOUD){
+    // make sure the email / number / ID isn't already in the database before we send a code
+    const btn = document.querySelector('#registerForm button[type="submit"]');
+    if(btn) btn.disabled = true;
+    cloudCheckDuplicates({email, phone, regNo, idNumber: pending.idNumber})
+      .then(msg=>{ if(msg){ showAuthError(msg); return; } pendingSignup = pending; beginOtp(false); })
+      .catch(err=>showAuthError(cloudMsg(err)))
+      .finally(()=>{ if(btn && !pendingSignup) btn.disabled = false; });
+    return false;
+  }
+  pendingSignup = pending;
   beginOtp(false);
   return false;
 }
@@ -995,6 +1314,11 @@ function firebaseMessage(err){
     'auth/network-request-failed': 'Network problem. Check your connection and try again.',
     'auth/unauthorized-domain': "This website's address is not in Firebase's authorized domains yet (see the README).",
     'auth/operation-not-allowed': 'Email/Password sign-in is switched off in Firebase. Turn it on under Authentication > Sign-in method (see the README).',
+    'auth/invalid-credential': 'No matching account found. Check your details, or create a free account.',
+    'auth/user-not-found': 'No matching account found. Check your details, or create a free account.',
+    'auth/wrong-password': 'No matching account found. Check your details, or create a free account.',
+    'auth/invalid-email': "That email address doesn't look right.",
+    'auth/user-disabled': 'This account has been disabled.',
     'auth/weak-password': 'That password is too weak for Firebase. Please use a longer one.',
     'cc/email-exists': 'This email already started verification with a different password. Use the same password as before, or use a different email address.'
   };
@@ -1067,7 +1391,7 @@ async function beginOtp(isResend){
   setOtpBusy(true);
   try{
     const r = await sendOtpRequest(s.channel, s.destination);
-    if(r.alreadyVerified){ finishSignup(null, r.uid); return; }   // Firebase already knew this email was verified
+    if(r.alreadyVerified){ await finishSignup(null, r.uid); return; }   // Firebase already knew this email was verified
     otpState = {otpId:r.otpId||'', masked:r.masked, mode:r.mode||'code', resendAt: Date.now() + (r.resendAfterSec||60)*1000, demoCode:r.demoCode||null, devMode:!!r.devMode, checking:false};
     showOtpPanel(isResend);
   }catch(err){
@@ -1093,7 +1417,7 @@ async function autoCheckLink(){
   otpState.checking = true;
   try{
     const r = await verifyOtpRequest(otpState.otpId, '');
-    finishSignup(null, r.uid);
+    await finishSignup(null, r.uid);
   }catch(_){ /* not verified yet: keep waiting */ }
   finally{ if(otpState) otpState.checking = false; }
 }
@@ -1150,7 +1474,7 @@ async function confirmOtp(){
   setOtpBusy(true); showOtpError('');
   try{
     const r = await verifyOtpRequest(otpState.otpId, code);
-    finishSignup(r.token, r.uid);
+    await finishSignup(r.token, r.uid);
   }catch(err){
     showOtpError(err.message);
   }finally{
@@ -1158,8 +1482,8 @@ async function confirmOtp(){
   }
 }
 
-function finishSignup(token, uid){
-  const s = pendingSignup; if(!s) return;
+async function finishSignup(token, uid){
+  const s = pendingSignup; if(!s || s.creating) return;
   const user = s.user;
   if(USERS.some(u=>u.email===user.email)){ showOtpError('An account with this email already exists. Go back and log in instead.'); return; }
   user.contactVerified = true;
@@ -1167,7 +1491,16 @@ function finishSignup(token, uid){
   user.verifiedAt = new Date().toISOString();
   user.otpToken = token || null;      // proof from our own server (only when VERIFY_METHOD is 'server')
   user.firebaseUid = uid || null;     // the matching user in Firebase Authentication (only when VERIFY_METHOD is 'firebase')
-  USERS.push(user);
+  if(CLOUD){
+    s.creating = true;
+    try{ await cloudCreateAccount(user, s.idNumber); }
+    catch(err){ s.creating = false; showOtpError(cloudMsg(err)); return; }
+    delete user.password;             // Firebase keeps the password; it is never stored in the database
+    USERS = [user]; PROFILES = {};
+    try{ await cloudLoadShared(user); }catch(err){ cloudWarn(err); }
+    cloudStartTimer();
+  }
+  if(!USERS.includes(user)) USERS.push(user);
   PROFILES[user.email] = emptyProfile();
   if(s.idNumber) PROFILES[user.email].idNumber = s.idNumber;
   saveAppState();
@@ -1181,6 +1514,7 @@ function handleLogin(e){
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim().toLowerCase();
   const password = document.getElementById('loginPassword').value;
+  if(CLOUD){ cloudLogin(email, password); return false; }
   const user = USERS.find(u=>u.email===email && u.password===password);
   if(!user){ showAuthError('No matching account found. Check your details, or create a free account.'); return false; }
   CURRENT = user;
@@ -1189,7 +1523,9 @@ function handleLogin(e){
 }
 
 function handleLogout(){
+  if(CLOUD){ cloudFlush(); cloudStopTimer(); }     // save first, then forget this person's data on this screen
   CURRENT = null;
+  if(CLOUD){ USERS = []; PROFILES = {}; VACANCIES = []; }
   document.getElementById('loginForm').reset();
   document.getElementById('registerForm').reset();
   toggleCompanyField();
@@ -1223,6 +1559,7 @@ function renderNotifications(){
 }
 
 function showDashPage(page){
+  if(CLOUD) cloudRefresh();
   document.querySelectorAll('.dash-page').forEach(p=>p.classList.add('hidden'));
   document.getElementById('page-'+page).classList.remove('hidden');
   document.querySelectorAll('#view-dashboard .dash-nav button').forEach(b=>b.classList.toggle('active', b.dataset.page===page));
@@ -1344,7 +1681,11 @@ function renderIdFile(){
 function removeIdDoc(){
   const p = PROFILES[CURRENT.email];
   if(pendingIdFile){ pendingIdFile = null; }
-  else if(p.idDoc){ if(p.idDoc.url) URL.revokeObjectURL(p.idDoc.url); p.idDoc = null; }
+  else if(p.idDoc){
+    if(p.idDoc.url) URL.revokeObjectURL(p.idDoc.url);
+    if(CLOUD && p.idDoc.path) cloudRun(cloudDeleteId(p.idDoc.path));
+    p.idDoc = null; saveAppState();
+  }
   document.getElementById('profIdFile').value = '';
   renderIdFile();
   updateIdStatus();
@@ -1370,7 +1711,7 @@ function loadIdSection(){
   updateIdStatus();
 }
 
-function saveIdDetails(){
+async function saveIdDetails(){
   const p = PROFILES[CURRENT.email];
   const num = document.getElementById('profIdNumber').value.trim();
   document.getElementById('idError').style.display = 'none';
@@ -1383,17 +1724,31 @@ function saveIdDetails(){
     if(!r.ok){ showIdError('ID number: ' + r.msg); return; }
     const clash = Object.keys(PROFILES).some(e => e!==CURRENT.email && PROFILES[e].idNumber === r.id);
     if(clash){ showIdError('This ID number is already linked to another account.'); return; }
+    if(CLOUD){
+      try{
+        const rows = await dbGet('cc_id_details', 'select=email&limit=1&email=neq.' + sbq(CURRENT.email) + '&id_number=' + eqs(r.id));
+        if(rows.length){ showIdError('This ID number is already linked to another account.'); return; }
+      }catch(err){ showIdError(cloudMsg(err)); return; }
+    }
     p.idNumber = r.id;
   } else {
     p.idNumber = '';
   }
   if(pendingIdFile){
+    let path = null;
+    if(CLOUD){
+      try{ path = await cloudUploadId(pendingIdFile); }catch(err){ showIdError(cloudMsg(err)); return; }
+      if(p.idDoc && p.idDoc.path) cloudDeleteId(p.idDoc.path);       // replace the old file
+    }
     if(p.idDoc && p.idDoc.url) URL.revokeObjectURL(p.idDoc.url);
-    p.idDoc = {name:pendingIdFile.name, size:pendingIdFile.size, type:pendingIdFile.type,
+    p.idDoc = {name:pendingIdFile.name, size:pendingIdFile.size, type:pendingIdFile.type, path,
                url: URL.createObjectURL(pendingIdFile)};
     pendingIdFile = null;
     document.getElementById('profIdFile').value = '';
   }
+  if(CLOUD){
+    try{ await cloudSaveOwnNow(CURRENT, p); }catch(err){ showIdError(cloudMsg(err)); return; }
+  } else saveAppState();
   renderIdFile();
   updateIdStatus();
   const ok = document.getElementById('idSaved');
@@ -1441,6 +1796,7 @@ function refreshUploadList(){
 }
 function removeDoc(i){
   PROFILES[CURRENT.email].docs.splice(i,1);
+  saveAppState();
   refreshUploadList();
   refreshOverview();
 }
@@ -1492,6 +1848,7 @@ async function runMatching(){
   const companies=posted.concat(live.filter(x=>/LinkedIn Jobs|Careers24|Indeed South Africa|SAYouth|DPSA public/i.test(x.name)));
   const learnerships=live.filter(x=>/Learnerships and internships|SAYouth/i.test(x.name));
   p.matches={universities:uni,courses,companies,learnerships,live};
+  saveAppState();
   refreshOverview(); showDashPage('matches'); showMatchCat('companies');
 }
 
@@ -1636,7 +1993,7 @@ function showMatchCat(cat){
       title = item.name; sub = fieldLabel(item.field); meta = item.desc; appName = item.name; appType='Course';
     } else if(cat==='companies'){
       title = item.name; sub = item.custom ? (item.company+' · '+item.location) : item.location; appType='Job';
-      appName = item.name + ' — ' + item.roles[0];
+      appName = item.custom ? item.name : item.name + ' — ' + item.roles[0];
       if(item.vacancy){
         vacancyId = item.vacancy.id;
         meta = item.custom ? (item.desc || 'Company vacancy posted on CareerConnect SA.') : ('Open role: ' + item.roles[0] + (item.vacancy.desc ? ' — ' + item.vacancy.desc : ''));
@@ -1667,13 +2024,21 @@ function showMatchCat(cat){
 function applyTo(type, name, vacancyId){
   const p = PROFILES[CURRENT.email];
   if(p.applications.some(a=> vacancyId ? a.vacancyId===vacancyId : (!a.vacancyId && a.name===name))) return;
-  p.applications.push({
-    id:'app'+(appSeq++), name, type, status:'Pending',
+  const app = {
+    id:newId('app'), name, type, status:'Pending',
     date: new Date().toLocaleDateString('en-ZA'), ts: Date.now(),
     vacancyId: vacancyId || null, feedback:''
-  });
-  if(vacancyId){ const v=VACANCIES.find(x=>x.id===vacancyId); if(v) notifyUser(v.ownerEmail,'New job application',CURRENT.name+' applied for '+v.title+'.'); }
-  saveAppState();
+  };
+  p.applications.push(app);
+  const vac = vacancyId ? VACANCIES.find(x=>x.id===vacancyId) : null;
+  const tellOwner = ()=>{ if(vac) notifyUser(vac.ownerEmail,'New job application',CURRENT.name+' applied for '+vac.title+'.'); };
+  if(CLOUD){
+    const me = CURRENT.email;
+    cloudRun(dbInsert('cc_applications', appRow(app, me)).then(tellOwner), ()=>{      // couldn't save: take it off the screen again
+      p.applications = p.applications.filter(x=>x!==app);
+      if(CURRENT && CURRENT.email===me){ refreshApplications(); refreshOverview(); showMatchCat(activeMatchCat); }
+    });
+  } else { tellOwner(); saveAppState(); }
   refreshOverview();
   showMatchCat(activeMatchCat);
 }
@@ -1728,9 +2093,11 @@ function verifyCompany(regNo, company){
 function startVerification(user){
   user.verification = 'pending';
   user.verifyNote = '';
+  saveAppState();
   verifyCompany(user.regNo, user.company).then(res=>{
     user.verification = res.ok ? 'verified' : 'rejected';
     user.verifyNote = res.message || '';
+    saveAppState();
     if(CURRENT === user && !document.getElementById('view-business').classList.contains('hidden')) refreshBiz();
   });
 }
@@ -1781,6 +2148,7 @@ function renderBusiness(){
 }
 
 function showBizPage(page){
+  if(CLOUD) cloudRefresh();
   document.querySelectorAll('.biz-page').forEach(p=>p.classList.add('hidden'));
   document.getElementById('bpage-'+page).classList.remove('hidden');
   document.querySelectorAll('#view-business .dash-nav button').forEach(b=>b.classList.toggle('active', b.dataset.bpage===page));
@@ -1890,12 +2258,14 @@ function setAppStatus(id, status){
   const hit = bizApplications().find(x=>x.a.id===id);
   if(!hit) return;
   hit.a.status = status;
+  if(CLOUD) cloudRun(dbPatch('cc_applications', 'id=' + eqs(id), {status}));
   notifyUser(hit.u.email,'Application update: '+hit.a.name,'Your application status is now '+status+'.');
   saveAppState(); refreshBiz();
 }
 function saveFeedback(id){
   const hit=bizApplications().find(x=>x.a.id===id); if(!hit) return;
   hit.a.feedback=document.getElementById('feedback-'+id).value.trim();
+  if(CLOUD) cloudRun(dbPatch('cc_applications', 'id=' + eqs(id), {feedback: hit.a.feedback}));
   if(hit.a.feedback) notifyUser(hit.u.email,'Company feedback received',CURRENT.company+' left feedback on your application for '+hit.a.name+'.');
   saveAppState(); refreshBizApplications(); alert('Feedback saved and shown on the candidate profile.');
 }
@@ -1909,11 +2279,13 @@ function postVacancy(e){
   const desc = document.getElementById('vacDesc').value.trim();
   if(!title || !location) return false;
 
-  VACANCIES.push({
-    id:'vac'+(vacSeq++), ownerEmail:CURRENT.email, company:CURRENT.company,
+  const vac = {
+    id:newId('vac'), ownerEmail:CURRENT.email, company:CURRENT.company,
     title, field, location, desc, closed:false, date:new Date().toLocaleDateString('en-ZA')
-  });
-  saveAppState();
+  };
+  VACANCIES.push(vac);
+  if(CLOUD) cloudRun(dbInsert('cc_vacancies', vacRow(vac)), ()=>{ VACANCIES = VACANCIES.filter(x=>x!==vac); refreshBiz(); });
+  else saveAppState();
   e.target.reset();
   const ok = document.getElementById('vacPosted');
   ok.classList.remove('hidden');
@@ -1926,7 +2298,9 @@ function toggleVacancy(id){
   const v = bizVacancies().find(v=>v.id===id);
   if(!v) return;
   v.closed = !v.closed;
-  saveAppState(); refreshBiz();
+  if(CLOUD) cloudRun(dbPatch('cc_vacancies', 'id=' + eqs(id), {closed: v.closed}));
+  else saveAppState();
+  refreshBiz();
 }
 
 function refreshBizVacancies(){
@@ -2145,7 +2519,7 @@ const CHAT_INTENTS = [
     a:'On your Overview page you’ll find in-app notifications about your applications (status changes and company feedback) and a switch for email alerts. Real emails need a secure backend email service, so this demo can’t send them yet — updates appear inside the site instead.',
     chips:['Where do I see my application status?']},
   {id:'data_saved', k:[[/saved|save my|where is my data|lost my|disappear|another (device|phone|computer)|different (device|phone|browser)|clear(ed)? (my )?(browser|cache|data)|private (mode|window)|safe|secure|privacy|popia|data protection|store(d)?\b|is my data/,3]],
-    a:'Your account, profile and applications are saved in this browser on this device only — not on a server. They stay after a refresh, but won’t appear on another device, or if you clear your browser data or use a private window. Your documents are read inside your browser and aren’t uploaded anywhere in this demo. Never share passwords or ID numbers in chat. A live version of the platform would add secure storage and POPIA-compliant consent.',
+    a: CLOUD ? 'Your account details, profile, applications, vacancies and notifications are saved in the CareerConnect SA database, so they’re there when you log in on another device or after clearing your browser. Your password is handled by Firebase sign-in and isn’t stored in the database. Your documents are read inside your browser — only their names, your qualification and field (and your ID number and ID document, if you add them) are saved. Never share passwords or ID numbers in chat.' : 'Your account, profile and applications are saved in this browser on this device only — not on a server. They stay after a refresh, but won’t appear on another device, or if you clear your browser data or use a private window. Your documents are read inside your browser and aren’t uploaded anywhere in this demo. Never share passwords or ID numbers in chat. A live version of the platform would add secure storage and POPIA-compliant consent.',
     chips:['Why is my ID number needed?']},
   {id:'cost', k:[[/is (it|this|the site|careerconnect).{0,20}free|does it cost|how much does (it|this|careerconnect)|subscription|any (fees?|charges?)|\bprice\b|\bpricing\b/,3],[/\bfree\b/,1]],
     a:'CareerConnect SA is free for students and job seekers. No pricing is set up for companies in this demo.',
@@ -2432,6 +2806,11 @@ goLanding();
         return { verified: u.emailVerified, uid: u.uid };
       };
       bridge.finish = async () => { await A.signOut(auth); };
+      /* Login: Firebase checks the email + password; the site's data comes from Supabase */
+      bridge.signIn = async (email, password) => {
+        const user = (await A.signInWithEmailAndPassword(auth, email, password)).user;
+        return { uid: user.uid, emailVerified: user.emailVerified };
+      };
       bridge.reset = async () => {
         try { await A.signOut(auth); } catch (_) {}
       };
