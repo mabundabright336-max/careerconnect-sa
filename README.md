@@ -20,10 +20,11 @@ The website (`public/index.html`) plus optional server pieces. Sign-up confirmat
 2. Project settings → General → Your apps → add a **Web app** (the `</>` icon). Copy the four values (`apiKey`, `authDomain`, `projectId`, `appId`) into `FIREBASE_CONFIG` in the `<script type="module">` block at the bottom of `public/index.html`. These values are meant to be public.
 3. Authentication → Get started → Sign-in method: enable **Phone** and **Email/Password**.
 4. Authentication → Settings → **Authorized domains**: add your Netlify address (for example `yoursite.netlify.app`) and any custom domain.
-5. **SMS to South Africa:** Authentication → Settings → **SMS region policy**: allow South Africa. New Firebase projects block every region by default, so until you do, sending fails with "operation not allowed". Real SMS may also need the project switched to the pay-as-you-go (Blaze) plan. Check your Firebase console and pricing page for the current rules and costs.
-6. **Test without sending real SMS:** Sign-in method → Phone → **Phone numbers for testing**. Add a made-up number such as `+27 82 000 0001` with the code `123456`, then use that number on your site. No SMS is sent and nothing is charged.
-7. **Email wording:** Authentication → Templates → "Email address verification" (sender name, subject, text). By default the email comes from a Firebase address and can land in spam, so tell users to check spam. Firebase also lets you use your own sender domain.
-8. Push to GitHub. Netlify redeploys and it works.
+5. **SMS needs billing.** Firebase's pricing page lists phone authentication as not available on the free Spark plan and billed per SMS on the pay-as-you-go (Blaze) plan. Upgrade the project (eligible accounts may get free credit), set a budget alert, and check the price for South Africa. **Email verification works without any of this**, so you can start with email only.
+6. **SMS region policy:** Authentication → Settings → **SMS region policy**: allow South Africa. New Firebase projects block every region by default, so until you do, sending fails with "operation not allowed".
+7. **Test without sending real SMS:** Sign-in method → Phone → **Phone numbers for testing**. Add a made-up number such as `+27 82 000 0001` with the code `123456`, then use that number on your site. No SMS is sent. The project may still need billing switched on first.
+8. **Email wording:** Authentication → Templates → "Email address verification" (sender name, subject, text). By default the email comes from a Firebase address and can land in spam, so tell users to check spam. Firebase also lets you use your own sender domain.
+9. Push to GitHub. Netlify redeploys and it works.
 
 **Good to know**
 - Email sign-ups create a Firebase user with the password the person chose (Firebase stores it hashed). The page still uses its own login for now.
