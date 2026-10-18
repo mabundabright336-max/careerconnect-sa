@@ -429,7 +429,7 @@
           <div id="otpNotice" class="otp-ok hidden" role="status"></div>
           <div class="form-error" id="otpError" style="display:none;" role="alert"></div>
           <form onsubmit="return verifyOtp(event)" style="margin-top:1rem;">
-            <div class="field">
+            <div class="field" id="otpCodeField">
               <label for="otpCode">6-digit code</label>
               <input type="text" id="otpCode" class="otp-input" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code" placeholder="••••••" required>
             </div>
@@ -928,10 +928,13 @@ function handleRegister(e){
 
 /* ---------- confirm the user with a one-time code (email or SMS) ---------- */
 const API_BASE = '';              // '' = same origin (server.js serves this page)
-const OTP_DEMO_MODE = false;      // true = preview these screens WITHOUT the server. The code is shown on screen, so it is NOT secure.
+const VERIFY_METHOD = 'firebase'; // 'firebase' = Firebase Authentication (SMS code / email link) - see the settings block at the bottom of this file
+                                  // 'server'   = this site's own /api/otp endpoints (Netlify Functions or server.js)
+                                  // 'demo'     = preview the screens only; the code is shown on screen (NOT secure)
 let pendingSignup = null;         // sign-up waiting for its code (not an account yet)
 let otpState = null;              // {otpId, masked, resendAt, demoCode, devMode}
 let otpTimer = null;
+let otpPoll = null;              // checks whether the emailed Firebase link was opened
 const otpEl = id => document.getElementById(id);
 
 /* South African mobile numbers (06x, 07x, 08x) -> +27XXXXXXXXX, or null */
@@ -964,10 +967,54 @@ function setOtpBusy(busy){
   if(busy) otpEl('otpResendBtn').disabled = true; else tickResend();
 }
 
+/* ----- Firebase helpers ----- */
+async function firebaseBridge(){
+  const fb = window.fbBridge;
+  if(!fb || !fb.configured) throw new Error("Firebase isn't set up yet. Paste your Firebase settings into index.html (see the README), or set VERIFY_METHOD to 'server'.");
+  try{ await fb.ready; }catch(_){ throw new Error('Could not load Firebase. Check your internet connection and try again.'); }
+  return fb;
+}
+function firebaseMessage(err){
+  const code = (err && err.code) || '';
+  const known = {
+    'auth/invalid-phone-number': "That mobile number doesn't look right.",
+    'auth/missing-phone-number': 'Please enter your mobile number.',
+    'auth/invalid-verification-code': 'That code is not correct.',
+    'auth/code-expired': 'That code has expired. Please request a new one.',
+    'auth/session-expired': 'That code has expired. Please request a new one.',
+    'auth/too-many-requests': 'Too many attempts. Please wait a while and try again.',
+    'auth/quota-exceeded': 'We have reached the SMS limit for now. Please try again later.',
+    'auth/captcha-check-failed': 'The security check failed. Please try again.',
+    'auth/network-request-failed': 'Network problem. Check your connection and try again.',
+    'auth/unauthorized-domain': "This website's address is not in Firebase's authorized domains yet (see the README).",
+    'auth/operation-not-allowed': 'This sign-in method is switched off in Firebase, or SMS to South Africa is not allowed yet in its SMS region policy (see the README).',
+    'auth/billing-not-enabled': 'Firebase needs billing switched on before it can send real SMS (see the README).',
+    'auth/weak-password': 'That password is too weak for Firebase. Please use a longer one.',
+    'cc/email-exists': 'This email already started verification with a different password. Use the same password as before, or verify by SMS instead.'
+  };
+  if(code) console.error('Firebase error:', code, err && err.message);
+  if(known[code]) return known[code];
+  if(code) return 'Verification failed (' + code + '). Please try again.';
+  return (err && err.message) || 'Verification failed. Please try again.';
+}
+
+/* ----- sending a code / link ----- */
 async function sendOtpRequest(channel, destination){
-  if(OTP_DEMO_MODE){
+  if(VERIFY_METHOD === 'demo'){
     const code = String(Math.floor(Math.random()*1000000)).padStart(6,'0');
-    return {otpId:'demo', masked: maskDestination(channel, destination), resendAfterSec:30, demoCode: code};
+    return {otpId:'demo', masked: maskDestination(channel, destination), resendAfterSec:30, demoCode: code, mode:'code'};
+  }
+  if(VERIFY_METHOD === 'firebase'){
+    const fb = await firebaseBridge();
+    try{
+      if(channel === 'sms'){
+        await fb.sendSms(destination);              // Firebase texts a 6-digit code
+        return {otpId:'firebase', masked: maskDestination(channel, destination), resendAfterSec:60, mode:'code'};
+      }
+      const r = await fb.startEmail(destination, pendingSignup.user.password);   // Firebase emails a verification LINK
+      if(r.alreadyVerified) return {alreadyVerified:true, uid:r.uid};
+      return {otpId:'firebase', masked: maskDestination(channel, destination), resendAfterSec:60, mode:'link'};
+    }catch(err){ throw new Error(firebaseMessage(err)); }
   }
   let res;
   try{
@@ -979,10 +1026,30 @@ async function sendOtpRequest(channel, destination){
   return body;
 }
 
+/* ----- checking the code (SMS) or whether the emailed link was opened ----- */
 async function verifyOtpRequest(otpId, code){
-  if(OTP_DEMO_MODE){
+  if(VERIFY_METHOD === 'demo'){
     if(code !== otpState.demoCode) throw new Error('That code is not correct.');
     return {ok:true, token:null};
+  }
+  if(VERIFY_METHOD === 'firebase'){
+    const fb = await firebaseBridge();
+    try{
+      if(otpState.mode === 'link'){
+        const r = await fb.checkEmail();
+        if(!r.verified){
+          const e = new Error("We can't see the verification yet. Open the link in the email we sent you (check spam too), then press the button again.");
+          e.notYet = true; throw e;
+        }
+        await fb.finish();
+        return {ok:true, token:null, uid:r.uid};
+      }
+      const r = await fb.confirmSms(code);
+      return {ok:true, token:null, uid:r.uid};
+    }catch(err){
+      if(err && err.notYet) throw err;
+      throw new Error(firebaseMessage(err));
+    }
   }
   let res;
   try{
@@ -999,7 +1066,8 @@ async function beginOtp(isResend){
   setOtpBusy(true);
   try{
     const r = await sendOtpRequest(s.channel, s.destination);
-    otpState = {otpId:r.otpId, masked:r.masked, resendAt: Date.now() + (r.resendAfterSec||60)*1000, demoCode:r.demoCode||null, devMode:!!r.devMode};
+    if(r.alreadyVerified){ finishSignup(null, r.uid); return; }   // Firebase already knew this email was verified
+    otpState = {otpId:r.otpId||'', masked:r.masked, mode:r.mode||'code', resendAt: Date.now() + (r.resendAfterSec||60)*1000, demoCode:r.demoCode||null, devMode:!!r.devMode, checking:false};
     showOtpPanel(isResend);
   }catch(err){
     if(isResend) showOtpError(err.message); else showAuthError(err.message);
@@ -1012,31 +1080,51 @@ function resendOtp(){ beginOtp(true); }
 function tickResend(){
   const btn = otpEl('otpResendBtn');
   if(!otpState){ btn.disabled = false; return; }
+  const label = otpState.mode === 'link' ? 'Resend email' : 'Resend code';
   const left = Math.ceil((otpState.resendAt - Date.now())/1000);
-  if(left > 0){ btn.disabled = true; btn.textContent = 'Resend code in ' + left + 's'; }
-  else { btn.disabled = false; btn.textContent = 'Resend code'; clearInterval(otpTimer); otpTimer = null; }
+  if(left > 0){ btn.disabled = true; btn.textContent = label + ' in ' + left + 's'; }
+  else { btn.disabled = false; btn.textContent = label; clearInterval(otpTimer); otpTimer = null; }
+}
+
+/* While waiting for the emailed link, quietly check every few seconds whether it was opened */
+async function autoCheckLink(){
+  if(!pendingSignup || !otpState || otpState.mode !== 'link' || otpState.checking) return;
+  otpState.checking = true;
+  try{
+    const r = await verifyOtpRequest(otpState.otpId, '');
+    finishSignup(null, r.uid);
+  }catch(_){ /* not verified yet: keep waiting */ }
+  finally{ if(otpState) otpState.checking = false; }
 }
 
 function showOtpPanel(isResend){
   const s = pendingSignup;
+  const link = otpState.mode === 'link';
   ['loginForm','registerForm','authTabs'].forEach(id=>otpEl(id).classList.add('hidden'));
   otpEl('authError').style.display = 'none';
   otpEl('otpPanel').classList.remove('hidden');
-  otpEl('otpInfo').textContent = 'We sent a 6-digit code by ' + (s.channel === 'sms' ? 'SMS' : 'email') + ' to ' + otpState.masked + '. It expires in 10 minutes.';
+  otpEl('otpCodeField').classList.toggle('hidden', link);
+  otpEl('otpCode').required = !link;
+  otpEl('otpVerifyBtn').textContent = link ? "I've verified my email" : 'Verify & Create Account';
+  const expiry = VERIFY_METHOD === 'firebase' ? 'It expires after a few minutes.' : 'It expires in 10 minutes.';
+  otpEl('otpInfo').textContent = link
+    ? 'We emailed a verification link to ' + otpState.masked + '. Open it (check your spam folder too), then come back here and press the button below.'
+    : 'We sent a 6-digit code by ' + (s.channel === 'sms' ? 'SMS' : 'email') + ' to ' + otpState.masked + '. ' + expiry;
   const banner = otpEl('otpBanner');
   if(otpState.demoCode){
-    banner.textContent = 'DEMO MODE — no message was sent. Your code is ' + otpState.demoCode + '. (Turn OTP_DEMO_MODE off for real codes.)';
+    banner.textContent = "DEMO MODE — no message was sent. Your code is " + otpState.demoCode + ". (Set VERIFY_METHOD to 'firebase' or 'server' for real codes.)";
     banner.classList.remove('hidden');
   } else if(otpState.devMode){
     banner.textContent = 'Developer mode — no email/SMS provider is set up on the server, so the code was printed in the server terminal instead of being sent.';
     banner.classList.remove('hidden');
   } else { banner.classList.add('hidden'); }
   const note = otpEl('otpNotice');
-  note.textContent = 'A new code has been sent.';
+  note.textContent = link ? 'A new email has been sent.' : 'A new code has been sent.';
   note.classList.toggle('hidden', !isResend);
   showOtpError('');
-  const input = otpEl('otpCode'); input.value = ''; input.focus();
+  const input = otpEl('otpCode'); input.value = ''; if(!link) input.focus();
   clearInterval(otpTimer); tickResend(); otpTimer = setInterval(tickResend, 1000);
+  clearInterval(otpPoll); otpPoll = link ? setInterval(autoCheckLink, 4000) : null;
 }
 
 /* Called whenever the auth screen switches tabs: closes the code step and forgets the pending sign-up */
@@ -1046,19 +1134,22 @@ function hideOtpPanel(){
   panel.classList.add('hidden');
   otpEl('authTabs').classList.remove('hidden');
   clearInterval(otpTimer); otpTimer = null;
+  clearInterval(otpPoll); otpPoll = null;
   pendingSignup = null; otpState = null;
+  if(VERIFY_METHOD === 'firebase' && window.fbBridge && window.fbBridge.reset) window.fbBridge.reset();   // tidy up Firebase's temporary session
 }
 function cancelOtp(){ switchAuthTab('register'); }   // keeps what they typed so they can fix the email/number
 
 function verifyOtp(e){ e.preventDefault(); confirmOtp(); return false; }
 async function confirmOtp(){
   if(!pendingSignup || !otpState) return;
+  const link = otpState.mode === 'link';
   const code = otpEl('otpCode').value.replace(/\D/g,'');
-  if(code.length !== 6){ showOtpError('Enter the 6-digit code.'); return; }
+  if(!link && code.length !== 6){ showOtpError('Enter the 6-digit code.'); return; }
   setOtpBusy(true); showOtpError('');
   try{
     const r = await verifyOtpRequest(otpState.otpId, code);
-    finishSignup(r.token);
+    finishSignup(r.token, r.uid);
   }catch(err){
     showOtpError(err.message);
   }finally{
@@ -1066,14 +1157,15 @@ async function confirmOtp(){
   }
 }
 
-function finishSignup(token){
+function finishSignup(token, uid){
   const s = pendingSignup; if(!s) return;
   const user = s.user;
   if(USERS.some(u=>u.email===user.email)){ showOtpError('An account with this email already exists. Go back and log in instead.'); return; }
   user.contactVerified = true;
   user.verifiedVia = s.channel;
   user.verifiedAt = new Date().toISOString();
-  user.otpToken = token || null;     // proof from the server that this email/number was confirmed
+  user.otpToken = token || null;      // proof from our own server (only when VERIFY_METHOD is 'server')
+  user.firebaseUid = uid || null;     // the matching user in Firebase Authentication (only when VERIFY_METHOD is 'firebase')
   USERS.push(user);
   PROFILES[user.email] = emptyProfile();
   if(s.idNumber) PROFILES[user.email].idNumber = s.idNumber;
@@ -2273,6 +2365,88 @@ function sendCareerChat(event){
 loadAppState();
 goLanding();
 // PDF.js is used only in the browser; no document bytes are uploaded by this standalone prototype.
+</script>
+
+<!-- Firebase's invisible security check (reCAPTCHA) for SMS lives here -->
+<div id="recaptcha-container"></div>
+
+<script type="module">
+  /* =====================================================================
+     FIREBASE SETTINGS (SMS codes + email verification)
+     Paste YOUR web-app settings from the Firebase console:
+       Project settings > General > Your apps > Web app > "SDK setup and configuration".
+     These values are meant to be public. Your Firebase settings (authorized domains, SMS region
+     policy) are what protect your project, not hiding them.
+     ===================================================================== */
+  const FIREBASE_CONFIG = {
+    apiKey: "PASTE_YOUR_API_KEY",
+    authDomain: "PASTE_YOUR_PROJECT_ID.firebaseapp.com",
+    projectId: "PASTE_YOUR_PROJECT_ID",
+    appId: "PASTE_YOUR_APP_ID"
+  };
+  const SDK = 'https://www.gstatic.com/firebasejs/12.8.0';
+
+  const configured = Object.values(FIREBASE_CONFIG).every(v => v && !String(v).includes('PASTE_'));
+  const bridge = { configured, ready: Promise.resolve() };
+  window.fbBridge = bridge;
+
+  if (configured) {
+    bridge.ready = (async () => {
+      const { initializeApp } = await import(SDK + '/firebase-app.js');
+      const A = await import(SDK + '/firebase-auth.js');
+      const auth = A.getAuth(initializeApp(FIREBASE_CONFIG));
+      let verifier = null, confirmation = null;
+
+      const clearVerifier = () => {
+        try { if (verifier) verifier.clear(); } catch (_) {}
+        verifier = null;
+        const box = document.getElementById('recaptcha-container');
+        if (box) box.innerHTML = '';
+      };
+
+      /* SMS: Firebase texts a 6-digit code to the phone */
+      bridge.sendSms = async (phone) => {
+        clearVerifier();
+        verifier = new A.RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+        confirmation = await A.signInWithPhoneNumber(auth, phone, verifier);
+      };
+      bridge.confirmSms = async (code) => {
+        if (!confirmation) throw new Error('Please request a new code.');
+        const cred = await confirmation.confirm(code);
+        const uid = cred.user.uid;
+        await A.signOut(auth);
+        clearVerifier(); confirmation = null;
+        return { uid };
+      };
+
+      /* Email: Firebase emails a verification LINK (it does not send typed codes by email) */
+      bridge.startEmail = async (email, password) => {
+        let user;
+        try {
+          user = (await A.createUserWithEmailAndPassword(auth, email, password)).user;
+        } catch (err) {
+          if (err.code !== 'auth/email-already-in-use') throw err;
+          try { user = (await A.signInWithEmailAndPassword(auth, email, password)).user; }
+          catch (_) { const e = new Error('email exists'); e.code = 'cc/email-exists'; throw e; }
+        }
+        if (user.emailVerified) { await A.signOut(auth); return { alreadyVerified: true, uid: user.uid }; }
+        await A.sendEmailVerification(user);
+        return { alreadyVerified: false, uid: user.uid };
+      };
+      bridge.checkEmail = async () => {
+        const u = auth.currentUser;
+        if (!u) return { verified: false };
+        await u.reload();
+        return { verified: u.emailVerified, uid: u.uid };
+      };
+      bridge.finish = async () => { await A.signOut(auth); };
+      bridge.reset = async () => {
+        clearVerifier(); confirmation = null;
+        try { await A.signOut(auth); } catch (_) {}
+      };
+    })();
+    bridge.ready.catch(() => {});   // the page shows its own message if loading failed
+  }
 </script>
 </body>
 </html>

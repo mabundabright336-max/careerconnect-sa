@@ -1,18 +1,39 @@
 # CareerConnect SA
 
-The website (`public/index.html`) plus the small server pieces it needs:
+The website (`public/index.html`) plus optional server pieces. Sign-up confirmation can work three ways. Pick one with `VERIFY_METHOD` near the top of the page's script:
 
-- **Email / SMS confirmation codes (OTP)** at sign-up: `/api/otp/send`, `/api/otp/verify`
-- **AI document reading** `/api/extract` (server side only, in `server.js`; the page is not wired to it yet)
+| `VERIFY_METHOD` | What the user gets | Needs |
+|---|---|---|
+| `'firebase'` (default) | **SMS:** a 6-digit code. **Email:** a verification link. | A free Firebase project. No server, works on Netlify or any static host. |
+| `'server'` | **SMS and email:** 6-digit codes sent by this project's own server (Twilio / Resend). | Netlify Functions (or `server.js`) plus provider accounts. |
+| `'demo'` | Preview of the screens only. The code is shown on the page (not secure). | Nothing. |
 
-It runs in two ways, using the same code logic:
+## Use Firebase for SMS and email confirmation
 
-| Where | How |
-|---|---|
-| **Netlify** (GitHub → Netlify) | `netlify/functions/*` handle the codes, `netlify.toml` tells Netlify where things are |
-| **Your own computer** or any Node host | `server.js` (Express), started with `npm start` |
+**What users see**
+- **SMS:** Firebase texts a 6-digit code. The user types it into the page.
+- **Email:** Firebase emails a verification **link** (Firebase doesn't send typed codes by email). The user opens the link, returns to the page and presses "I've verified my email". The page also notices on its own after a few seconds.
+- The account is only created after this step succeeds.
 
-## Deploy on Netlify (GitHub → Netlify)
+**Set it up (about 15 minutes)**
+1. Go to console.firebase.google.com and add a project.
+2. Project settings → General → Your apps → add a **Web app** (the `</>` icon). Copy the four values (`apiKey`, `authDomain`, `projectId`, `appId`) into `FIREBASE_CONFIG` in the `<script type="module">` block at the bottom of `public/index.html`. These values are meant to be public.
+3. Authentication → Get started → Sign-in method: enable **Phone** and **Email/Password**.
+4. Authentication → Settings → **Authorized domains**: add your Netlify address (for example `yoursite.netlify.app`) and any custom domain.
+5. **SMS to South Africa:** Authentication → Settings → **SMS region policy**: allow South Africa. New Firebase projects block every region by default, so until you do, sending fails with "operation not allowed". Real SMS may also need the project switched to the pay-as-you-go (Blaze) plan. Check your Firebase console and pricing page for the current rules and costs.
+6. **Test without sending real SMS:** Sign-in method → Phone → **Phone numbers for testing**. Add a made-up number such as `+27 82 000 0001` with the code `123456`, then use that number on your site. No SMS is sent and nothing is charged.
+7. **Email wording:** Authentication → Templates → "Email address verification" (sender name, subject, text). By default the email comes from a Firebase address and can land in spam, so tell users to check spam. Firebase also lets you use your own sender domain.
+8. Push to GitHub. Netlify redeploys and it works.
+
+**Good to know**
+- Email sign-ups create a Firebase user with the password the person chose (Firebase stores it hashed). The page still uses its own login for now.
+- Each new account saves a `firebaseUid` linking it to its Firebase user.
+- Firebase proves the email or number belongs to the person at sign-up. Accounts still live in each visitor's browser, so someone editing their own browser could skip the step. To enforce it, move login and accounts to Firebase Authentication plus a database.
+
+## Option: your own codes on Netlify (`VERIFY_METHOD = 'server'`)
+
+Skip this whole part if you use Firebase.
+
 
 1. **Put these files in your GitHub repository** so that `netlify.toml`, `package.json`, `otp.js`, `senders.js`, the `netlify` folder and the `public` folder are at the top level of the repo. The old root `index.html` is no longer used; delete it. **Never upload `.env`** (the included `.gitignore` skips it). If real keys ever reached GitHub, delete them in your provider's dashboard and create new ones.
 2. **Add your settings in Netlify:** Site configuration → Environment variables (menu names may differ slightly). Add:
@@ -35,7 +56,7 @@ How it fits Netlify: the codes are kept in Netlify Blobs (built in, no extra acc
 3. `npm start`, then open http://localhost:3000 (not the `index.html` file).
 4. With no email/SMS keys the code is printed in the terminal. `npm test` runs the automated tests.
 
-`OTP_DEMO_MODE = true` in `public/index.html` previews the screens with no server at all (the code is shown on screen: not secure, previews only).
+`VERIFY_METHOD = 'demo'` in `public/index.html` previews the screens with no server at all (the code is shown on screen: not secure, previews only).
 
 ## Sending real codes
 
