@@ -5,6 +5,8 @@ import {
   createOtpService, normalizeEmail, normalizeSAPhone, maskDestination, OtpError,
   OTP_TTL_MS, RESEND_COOLDOWN_MS, MAX_ATTEMPTS, MAX_SENDS_PER_HOUR,
 } from './otp.js';
+import { makeSender, describeSenders } from './senders.js';
+import { makeCors } from './cors.js';
 import { sniffType, parseModelJson, sanitizeExtraction, runExtraction, ExtractionError } from './lib.js';
 
 function setup() {
@@ -123,4 +125,49 @@ test('runExtraction end to end with a fake model', async () => {
   assert.equal(out.highest_qualification, 'Grade 12');
   await assert.rejects(runExtraction({ files: [], text: '', callModel: async () => '{}' }), ExtractionError);
   await assert.rejects(runExtraction({ files: [pdf], callModel: async () => 'sorry, cannot' }), (e) => e.status === 502);
+});
+
+/* ---- sending: failures must be diagnosable ---- */
+test('describeSenders reports how codes will be delivered', () => {
+  assert.deepEqual(describeSenders({}), { sms: 'terminal', email: 'terminal' });
+  assert.deepEqual(describeSenders({ NODE_ENV: 'production' }), { sms: 'unavailable', email: 'unavailable' });
+  assert.deepEqual(describeSenders({ RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co' }).email, 'provider');
+});
+
+test('provider errors keep the provider message so you can see why sending failed', async () => {
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = async () => ({ ok: false, status: 403, text: async () => '{"message":"domain not verified"}' });
+  try {
+    const send = makeSender({ RESEND_API_KEY: 'k', EMAIL_FROM: 'a@b.co' });
+    await assert.rejects(send('email', 'x@y.co', '123456'), /403.*domain not verified/);
+    const svc = createOtpService({ secret: 's', send });
+    await assert.rejects(svc.start({ channel: 'email', destination: 'x@y.co' }), (e) => e.status === 502 && /domain not verified/.test(e.cause.message));
+    const prod = makeSender({ NODE_ENV: 'production' });
+    await assert.rejects(prod('email', 'x@y.co', '123456'), /no email provider is configured/);
+  } finally { globalThis.fetch = realFetch; }
+});
+
+/* ---- CORS (only for pages hosted elsewhere) ---- */
+function fakeRes() { const h = {}; return { h, statusCode: 200, ended: false, setHeader(k, v) { h[k] = v; }, end() { this.ended = true; } }; }
+test('CORS is off unless you list an origin, and never wildcard', () => {
+  let nexted = false;
+  const res = fakeRes();
+  makeCors('')({ headers: { origin: 'https://evil.example' }, method: 'POST' }, res, () => { nexted = true; });
+  assert.ok(nexted); assert.deepEqual(res.h, {});
+
+  const cors = makeCors('https://me.github.io/, http://localhost:5500');
+  const ok = fakeRes(); let n1 = false;
+  cors({ headers: { origin: 'https://me.github.io' }, method: 'POST' }, ok, () => { n1 = true; });
+  assert.ok(n1); assert.equal(ok.h['Access-Control-Allow-Origin'], 'https://me.github.io');
+
+  const bad = fakeRes(); let n2 = false;
+  cors({ headers: { origin: 'https://evil.example' }, method: 'POST' }, bad, () => { n2 = true; });
+  assert.ok(n2); assert.equal(bad.h['Access-Control-Allow-Origin'], undefined); // browser will block it
+
+  const pre = fakeRes(); let n3 = false;
+  cors({ headers: { origin: 'https://me.github.io' }, method: 'OPTIONS' }, pre, () => { n3 = true; });
+  assert.equal(pre.statusCode, 204); assert.ok(pre.ended && !n3);
+  const preBad = fakeRes();
+  cors({ headers: { origin: 'https://evil.example' }, method: 'OPTIONS' }, preBad, () => {});
+  assert.equal(preBad.statusCode, 403);
 });

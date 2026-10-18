@@ -1,0 +1,42 @@
+CareerConnectSA — Supabase database integration
+
+Files
+- index.html: CareerConnectSA with Supabase Auth and database-backed shared records.
+- schema.sql: database schema, RLS policies, and private Storage bucket policies.
+
+WHAT NOW USES SUPABASE
+- Authentication and email/SMS verification.
+- User profiles, role and company verification status.
+- Candidate qualification level and field-of-interest preferences.
+- Employer vacancies (create, list, close/reopen).
+- Applications to company vacancies and employer status/feedback updates.
+- Candidate CV/qualification files in a private Supabase Storage bucket; metadata is stored in user_documents.
+- Local browser storage is no longer used to persist profile, vacancy, application or document data.
+
+SETUP
+1. In Supabase Dashboard > SQL Editor, run the entire schema.sql. It is written to create missing tables and add the new columns to existing tables.
+2. In Authentication > Sign In / Providers, enable Email and require email confirmation. Enable Phone and configure an SMS provider.
+3. In Authentication > URL Configuration, set Site URL to https://careerconnectsa.netlify.app and add https://careerconnectsa.netlify.app/** to Redirect URLs.
+4. Configure custom SMTP for production email delivery.
+5. Replace the deployed Netlify site entry file with this index.html and deploy.
+6. Test new user registration, email confirmation, SMS OTP, login/logout, saving profile preferences, private document upload/removal, candidate applications, and employer vacancy actions.
+
+COMPANY VERIFICATION
+Employer vacancy insert is deliberately blocked until a trusted administrator verifies the company. After manually checking the company outside this website, an administrator can run this in SQL Editor, replacing the email:
+
+update public.profiles
+set company_verification_status = 'Verified'
+where email = 'employer@example.com';
+
+Never mark a company verified based only on user-submitted registration details. Do not let ordinary clients update this status.
+
+SECURITY
+- The publishable key in index.html is intended to be public. Never put a service-role/secret key in browser code.
+- RLS is enabled on profiles, vacancies, applications and document metadata.
+- CV/qualification files are stored in a private Storage bucket and are accessible only to their owner. Employer document-sharing workflows are not enabled by this integration.
+- The South African ID number and ID scan feature remains session-only in the browser and is NOT sent to Supabase. Do not rely on it as a secure persistent ID-document system.
+- External opportunity links and locally generated career matching recommendations remain frontend features. Generic applications to universities/courses/learnerships are not yet stored as database applications; applications to company-posted vacancies are.
+- Existing demo records in localStorage are not migrated. The old demo store is cleared because it may have contained plaintext passwords. Register/test with new accounts or import cleaned records through a trusted admin process.
+
+TESTING NOTE
+The files have passed a local JavaScript syntax check, but they have NOT been tested against your live Supabase project. Real email/SMS delivery and database access depend on applying schema.sql and configuring the providers correctly.

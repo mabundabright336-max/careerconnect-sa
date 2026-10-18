@@ -11,9 +11,13 @@ import { randomBytes } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { runExtraction, ExtractionError, SYSTEM_PROMPT } from './lib.js';
 import { createOtpService, OtpError } from './otp.js';
-import { makeSender } from './senders.js';
+import { makeSender, describeSenders } from './senders.js';
+import { makeCors } from './cors.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+
+// Load .env when it exists (on a host you set the same values in its Environment settings instead).
+try { process.loadEnvFile(path.join(__dirname, '.env')); } catch { /* no .env file: that's fine */ }
 const PORT = Number(process.env.PORT) || 3000;
 const API_KEY = process.env.ANTHROPIC_API_KEY;
 const MODEL = process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5'; // check Anthropic's docs for current model names
@@ -33,8 +37,10 @@ const otp = createOtpService({ send, secret: OTP_SECRET });
 
 const app = express();
 app.disable('x-powered-by');
-// Behind a proxy / load balancer, enable this so rate limits see real client IPs:
-// app.set('trust proxy', 1);
+// Hosting platforms put one proxy in front of your app. Without this, every visitor would look like the
+// same IP and share one rate-limit bucket. Set TRUST_PROXY=0 if you run without a proxy.
+const trustProxy = process.env.TRUST_PROXY !== undefined ? Number(process.env.TRUST_PROXY) : process.env.NODE_ENV === 'production' ? 1 : 0;
+if (trustProxy) app.set('trust proxy', trustProxy);
 
 app.use((req, res, next) => {
   res.setHeader('X-Content-Type-Options', 'nosniff');
@@ -67,17 +73,23 @@ const extractLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 const otpSendLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 10 });
 const otpVerifyLimit = makeRateLimiter({ windowMs: 15 * 60 * 1000, max: 30 });
 
+app.use('/api', makeCors(process.env.ALLOWED_ORIGIN));
+
 const json = express.json({ limit: '2kb' });
 const upload = multer({
   storage: multer.memoryStorage(), // never written to disk
   limits: { files: MAX_FILES, fileSize: MAX_FILE_BYTES, fieldSize: 300 * 1024 },
 });
 
-app.get('/api/health', (req, res) => res.json({ ok: true, documentReading: Boolean(API_KEY) }));
+app.get('/api/health', (req, res) =>
+  res.json({ ok: true, documentReading: Boolean(API_KEY), codeDelivery: describeSenders(process.env) })
+);
 
 /* ---------------- one-time codes ---------------- */
 function otpFail(res, err) {
   if (err instanceof OtpError) {
+    // The visitor only sees a generic message; the real reason goes to YOUR terminal.
+    if (err.status >= 500 && err.cause) console.error('[otp] sending failed:', err.cause.message);
     const body = { error: err.message };
     if (err.retryAfter) body.retryAfter = err.retryAfter;
     if (err.attemptsLeft !== undefined) body.attemptsLeft = err.attemptsLeft;
@@ -169,4 +181,10 @@ app.use((err, req, res, next) => {
 
 app.use(express.static(path.join(__dirname, 'public')));
 
-app.listen(PORT, () => console.log(`CareerConnect SA running at http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`CareerConnect SA running at http://localhost:${PORT}`);
+  const d = describeSenders(process.env);
+  const label = { provider: 'sent for real', terminal: 'printed in this terminal (dev only)', unavailable: 'NOT AVAILABLE - add provider keys to .env' };
+  console.log(`Confirmation codes by email: ${label[d.email]}`);
+  console.log(`Confirmation codes by SMS:   ${label[d.sms]}`);
+});

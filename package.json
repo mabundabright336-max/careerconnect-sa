@@ -5,10 +5,10 @@
   "type": "module",
   "description": "CareerConnect SA with AI document reading",
   "scripts": {
-    "start": "node --env-file=.env server.js",
+    "start": "node server.js",
     "test": "node test.js"
   },
-  "engines": { "node": ">=20.6" },
+  "engines": { "node": ">=20.12" },
   "dependencies": {
     "express": "^4.21.0",
     "multer": "^2.0.0"
