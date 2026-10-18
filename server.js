@@ -115,10 +115,10 @@ app.post('/api/otp/send', otpSendLimit, json, async (req, res) => {
   }
 });
 
-app.post('/api/otp/verify', otpVerifyLimit, json, (req, res) => {
+app.post('/api/otp/verify', otpVerifyLimit, json, async (req, res) => {
   try {
-    const { otpId, code } = req.body || {};
-    const r = otp.verify({ otpId, code });
+    const { channel, destination, otpId, code } = req.body || {};
+    const r = await otp.verify({ channel, destination, otpId, code });
     res.json({ ok: true, token: r.token });
   } catch (err) {
     otpFail(res, err);

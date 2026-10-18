@@ -1,69 +1,63 @@
-# CareerConnect SA — server
+# CareerConnect SA
 
-Serves the website (`public/index.html`) and provides:
+The website (`public/index.html`) plus the small server pieces it needs:
 
-- **Email / SMS confirmation codes (OTP)** for sign-up: `POST /api/otp/send`, `POST /api/otp/verify`
-- **AI document reading**: `POST /api/extract` (the server side is ready; the page is not wired to it in the current `index.html`)
+- **Email / SMS confirmation codes (OTP)** at sign-up: `/api/otp/send`, `/api/otp/verify`
+- **AI document reading** `/api/extract` (server side only, in `server.js`; the page is not wired to it yet)
 
-## Run it
+It runs in two ways, using the same code logic:
 
-1. Install Node.js 20.12 or newer (nodejs.org).
-2. In this folder run `npm install`.
-3. Copy `.env.example` to `.env` and set `OTP_SECRET` to a long random value:
-   `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
-4. `npm start`, then open http://localhost:3000
-5. `npm test` runs the automated tests.
+| Where | How |
+|---|---|
+| **Netlify** (GitHub → Netlify) | `netlify/functions/*` handle the codes, `netlify.toml` tells Netlify where things are |
+| **Your own computer** or any Node host | `server.js` (Express), started with `npm start` |
 
-**No SMS/email account yet?** Leave the provider settings empty. While `NODE_ENV` is not `production`, each code is printed in the terminal where the server runs, and the page shows a "Developer mode" note. Codes are never sent to the browser.
+## Deploy on Netlify (GitHub → Netlify)
 
-**Just want to look at the screens, without the server?** In `public/index.html` set `OTP_DEMO_MODE = true`. The code is then shown on screen. This is for previewing only and is not secure.
+1. **Put these files in your GitHub repository** so that `netlify.toml`, `package.json`, `otp.js`, `senders.js`, the `netlify` folder and the `public` folder are at the top level of the repo. The old root `index.html` is no longer used; delete it. **Never upload `.env`** (the included `.gitignore` skips it). If real keys ever reached GitHub, delete them in your provider's dashboard and create new ones.
+2. **Add your settings in Netlify:** Site configuration → Environment variables (menu names may differ slightly). Add:
+   - `OTP_SECRET`: a long random value. Make one with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
+   - `NODE_ENV` = `production`
+   - Email: `RESEND_API_KEY` and `EMAIL_FROM`
+   - SMS: `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM` (or `TWILIO_MESSAGING_SERVICE_SID`)
+3. **Deploy again.** Pushing to GitHub does this. After adding or changing variables, also use Deploys → Trigger deploy.
+4. **Check it:** open `https://YOURSITE.netlify.app/api/health`. You want `otpSecretSet: true`, `storage: "ok"`, and `provider` next to the channel you set up.
+5. **Try a sign-up** on your site.
+
+**Testing before you have email/SMS keys:** set `NODE_ENV` to `development` in Netlify. Codes are then written to the function log (Netlify → Logs → Functions), not sent and not shown on the website. Switch back to `production` afterwards.
+
+How it fits Netlify: the codes are kept in Netlify Blobs (built in, no extra account), and Netlify itself limits how often one IP can call the endpoints (5 sends per 3 minutes, 20 checks per minute).
+
+## Run on your computer
+
+1. Install Node.js 20.12 or newer. In this folder run `npm install`.
+2. Optional: copy `.env.example` to `.env` and set `OTP_SECRET`.
+3. `npm start`, then open http://localhost:3000 (not the `index.html` file).
+4. With no email/SMS keys the code is printed in the terminal. `npm test` runs the automated tests.
+
+`OTP_DEMO_MODE = true` in `public/index.html` previews the screens with no server at all (the code is shown on screen: not secure, previews only).
 
 ## Sending real codes
 
-Set the variables in `.env` (see `.env.example`):
-
-- **SMS:** Twilio (`TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, and `TWILIO_FROM` or `TWILIO_MESSAGING_SERVICE_SID`). Trial accounts can usually only text numbers you have verified, and sender rules differ by country, so check Twilio's South Africa guidance.
-- **Email:** Resend (`RESEND_API_KEY`, `EMAIL_FROM`). The sending domain must be verified in your Resend account.
-- **Another provider** (for example a South African SMS gateway): add one function in `senders.js`.
-
-## Putting it online (GitHub is not enough)
-
-**GitHub Pages only serves static files, so it cannot send codes.** The Node server in this folder has to run on a host that runs Node apps (Render, Railway, Fly.io and similar; check what each costs today). GitHub is still the right place for the code.
-
-**Option A (recommended): host everything on the Node host**
-1. Put this whole folder in a GitHub repository. **Never upload `.env`** (the included `.gitignore` already skips it). If real keys were ever pushed to GitHub, delete them from your provider's dashboard and create new ones.
-2. On the host, create a new "Web Service" from that repository. Build command: `npm install`. Start command: `npm start`. Use Node 20.12 or newer.
-3. Add the settings from `.env.example` in the host's **Environment** page: `OTP_SECRET`, `NODE_ENV=production`, plus your email and/or SMS keys.
-4. Open the address the host gives you. The site, sign-up and codes all work from there. You can stop using the GitHub Pages address.
-
-**Option B: keep the page on GitHub Pages, host only the server elsewhere**
-1. Deploy the server as in Option A, and also set `ALLOWED_ORIGIN` to your Pages address (for example `https://yourname.github.io`).
-2. In `public/index.html`, set `API_BASE` to the server's address (for example `https://careerconnect.onrender.com`, with no slash at the end), then push the change.
-
-**In production mode real keys are required.** With `NODE_ENV=production` and no email/SMS keys, sending fails with "We couldn't send your code". For a short test before you have keys, set `NODE_ENV` to `development` on the host: the codes then appear in the host's log page, not on the website. Switch back to `production` afterwards.
+- **SMS:** Twilio. Trial accounts can usually only text numbers you've verified, and sender rules differ by country, so check Twilio's South Africa guidance and geographic permissions.
+- **Email:** Resend. `EMAIL_FROM` must use a domain you've verified in Resend (Resend's shared test sender only emails your own account address).
+- **Another provider** (e.g. a South African SMS gateway): add one function in `senders.js`.
 
 ## "We couldn't send your code"
 
-The page shows that generic message whenever sending fails. **The real reason is printed in the terminal where `npm start` is running**, on a line starting `[otp] sending failed:`. When the server starts it also tells you how codes will go out (for real, printed in the terminal, or not available). You can check the same thing at http://localhost:3000/api/health.
+The visitor only sees that generic message. The real reason is in the logs: the terminal running `npm start`, or on Netlify, Logs → Functions (look for `[otp] sending failed:`). Also check `/api/health`. Common causes: `NODE_ENV=production` with no provider keys; placeholder keys left in; Resend domain not verified; Twilio trial number not verified; variables changed but not redeployed.
 
-Common causes:
-
-- `NODE_ENV=production` is set but no email/SMS provider keys are filled in. Either add the keys or remove that line while testing.
-- Placeholder keys left in `.env` (for example `TWILIO_FROM=+1xxxxxxxxxx`). Delete the lines you aren't using, so codes print in the terminal instead.
-- **Resend:** `EMAIL_FROM` must use a domain you verified in Resend. Resend's shared test sender can only email your own account address.
-- **Twilio trial:** it can only text numbers you've verified in your Twilio account. Also make sure sending to South Africa is allowed in its geographic permissions, and that `TWILIO_FROM` is a number or sender your account can use.
-- You changed `.env` but didn't restart. Stop the server (Ctrl+C) and run `npm start` again.
+If the page says the service "wasn't found", the `netlify` folder or `netlify.toml` isn't in the repo yet, or the site hasn't been redeployed.
 
 ## How the codes work
 
-- 6 digits, valid for 10 minutes, usable once.
-- 5 wrong guesses and the code is destroyed. One new code per minute and 5 per hour for each address/number, plus per-IP limits.
-- Codes are stored only as hashes (HMAC) and never written to logs in production.
-- After a correct code the server returns a signed token. `checkToken()` in `otp.js` lets a future server-side sign-up confirm that an email/number really was verified.
+- 6 digits, valid for 10 minutes, usable once. 5 wrong guesses destroy the code. One new code per minute and 5 per hour for each address/number.
+- Parallel requests can't get free guesses or trigger extra messages: every change is a compare-and-set write, and the visitor is only told "right" or "wrong" after their attempt was counted.
+- Codes and addresses are stored only as keyed hashes. Codes are never written to logs in production.
+- After a correct code the server returns a signed token. `checkToken()` in `otp.js` lets a future server-side sign-up confirm an email/number really was verified.
 
 ## Before going live
 
-- **Accounts must move to a server database.** Today accounts, passwords and the "confirmed" flag live in the visitor's browser storage, so the code check only stops honest users: someone editing their own browser could skip it. Passwords are stored in plain text there too. Production needs server-side accounts with hashed passwords (argon2 or bcrypt).
-- Serve over HTTPS and set `NODE_ENV=production` (then sending fails unless a provider is configured, instead of falling back to the terminal).
-- The code store and rate limits are in memory: they reset on restart and aren't shared between servers. Use Redis or a database if you run more than one.
+- **Accounts must move to a server database.** Today accounts, passwords and the "confirmed" flag live in each visitor's own browser, so the code check only stops honest users (someone editing their own browser could skip it), passwords are stored in plain text there, and an employer on one device can't see applications made on another. Production needs server-side accounts with hashed passwords (argon2 or bcrypt).
+- Small leftover records (one per address/number, no codes inside) stay in Blobs; they can be cleared from the Netlify Blobs page.
 - Consider a CAPTCHA on sign-up to limit SMS-cost abuse, and add a privacy notice covering phone numbers (POPIA).
