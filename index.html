@@ -521,6 +521,7 @@
             <div class="upload-box" style="padding:1.2rem;">
               <p style="font-size:.88rem;"><b>Select</b> a PDF, JPG or PNG — max 5 MB</p>
               <input type="file" id="profIdFile" accept=".pdf,.jpg,.jpeg,.png,application/pdf,image/jpeg,image/png" onchange="onIdFileChosen()">
+              <p id="idScanStatus" class="form-note" role="status" aria-live="polite" style="margin-top:.6rem;"></p>
             </div>
             <div id="idFileBox"></div>
           </div>
@@ -562,10 +563,10 @@
         <div class="panel">
           <h3>Step 2: Upload File</h3>
           <div class="upload-box">
-            <p><b>Drop or select</b> your Grade 12 results, certificate, diploma, degree or CV</p>
-            <input type="file" id="uploadFile" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/png,image/jpeg,image/webp">
+            <p><b>Drop or select</b> your Grade 12 results or your CV (an ID document is also accepted)</p>
+            <input type="file" id="uploadFile" onchange="onUploadFileChosen()" accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document,text/plain,image/png,image/jpeg,image/webp">
             <label style="display:flex;align-items:flex-start;gap:.55rem;margin-top:1rem;font-size:.88rem;">
-              <input type="checkbox" id="docConsent" style="margin-top:.35rem;">
+              <input type="checkbox" id="docConsent" style="margin-top:.35rem;" onchange="maybeScanUpload()">
               <span>I consent to processing this document in my browser to extract qualification details. The standalone demo does not send the file to a server.</span>
             </label>
             <p id="parseStatus" class="form-note" role="status" aria-live="polite" style="margin-top:.75rem;"></p>
@@ -1639,14 +1640,26 @@ function showIdError(msg){
   el.textContent = msg; el.style.display = 'block';
 }
 
-function onIdFileChosen(){
+let idScanToken = 0;
+async function onIdFileChosen(){
   const input = document.getElementById('profIdFile');
   const f = input.files[0];
+  const token = ++idScanToken;
+  const st = document.getElementById('idScanStatus');
   document.getElementById('idError').style.display = 'none';
-  if(!f){ return; }
+  st.className = 'form-note'; st.textContent = '';
+  pendingIdFile = null;
+  if(!f){ renderIdFile(); return; }
   const okType = ID_TYPES.includes(f.type) || /\.(pdf|jpe?g|png)$/i.test(f.name);
   if(!okType){ input.value=''; showIdError('Please choose a PDF, JPG or PNG file.'); return; }
   if(f.size > ID_MAX_BYTES){ input.value=''; showIdError('That file is ' + fmtSize(f.size) + '. The maximum is 5 MB.'); return; }
+  // scan it first: only an ID document is accepted here
+  renderIdFile();
+  st.textContent = 'Checking your document…';
+  const r = await scanDocument(f, msg=>{ if(token === idScanToken) st.textContent = msg; }, ID_ALLOWED);
+  if(token !== idScanToken) return;               // another file was chosen meanwhile
+  if(!r.ok){ input.value = ''; pendingIdFile = null; st.textContent = ''; renderIdFile(); showIdError(r.message); return; }
+  st.className = 'form-note success'; st.textContent = '✓ Recognised as an ID document.';
   pendingIdFile = f;
   renderIdFile();
 }
@@ -1702,8 +1715,9 @@ function updateIdStatus(){
 
 function loadIdSection(){
   const p = PROFILES[CURRENT.email];
-  pendingIdFile = null;
+  pendingIdFile = null; idScanToken++;
   document.getElementById('profIdFile').value = '';
+  document.getElementById('idScanStatus').textContent = '';
   document.getElementById('profIdNumber').value = p.idNumber || '';
   document.getElementById('idError').style.display = 'none';
   onIdInput();
@@ -1813,7 +1827,7 @@ async function runMatching(){
   // Require at least one uploaded document before matching can begin.
   if(!file && (!Array.isArray(p.docs) || p.docs.length === 0)){
     status.className='form-note error';
-    status.textContent='Please upload a document (such as your Grade 12 results, certificate, diploma or CV) before finding matches.';
+    status.textContent='Please upload your Grade 12 results or your CV before finding matches.';
     if(fileInput) fileInput.focus();
     return;
   }
@@ -1823,9 +1837,11 @@ async function runMatching(){
     if(!document.getElementById('docConsent') || !document.getElementById('docConsent').checked){
       status.className='form-note error'; status.textContent='Please tick the consent box before processing this document.'; return;
     }
-    status.className='form-note'; status.textContent='Reading your document in this browser…';
-    try { extracted = await extractDocumentText(file, msg=>status.textContent=msg); }
-    catch(err){ status.className='form-note error'; status.textContent='Could not read this file: '+(err.message||'unsupported or damaged file')+'. You can still choose your qualification and field manually.'; }
+    // the document must be scanned and recognised first (Grade 12 results, CV or ID)
+    let scan = (uploadScan && uploadScan.file === file && uploadScan.status !== 'scanning') ? uploadScan : null;
+    if(!scan) scan = await scanUploadFile(file);
+    if(!scan.ok){ rejectUpload(scan); return; }
+    extracted = scan.kind === 'id' ? '' : scan.text;      // an ID document is never used for matching or kept as text
     if(extracted.trim()){
       p.extractedText = extracted.slice(0,50000); p.extractedFile=file.name;
       document.getElementById('extractedPreview').classList.remove('hidden');
@@ -1835,8 +1851,10 @@ async function runMatching(){
       const inferredField=inferField(extracted);
       if(inferredField){ fieldSelect.value=inferredField; status.textContent+=' Suggested field: '+fieldLabel(inferredField)+'.'; }
       status.className='form-note success';
+    } else if(scan.kind === 'id'){
+      status.className='form-note success'; status.textContent='✓ ID document recognised and added. To complete verification, also add it under My Profile. Add your Grade 12 results or CV to improve your matches.';
     } else if(file){ status.className='form-note error'; status.textContent='No readable text was found. If this is a scanned PDF, try uploading the page as an image or check the scan quality.'; }
-    p.docs.push(file.name); fileInput.value='';
+    p.docs.push(file.name); fileInput.value=''; uploadScan = null;
   }
   refreshUploadList();
   p.qualLevel=qualSelect.value; p.field=fieldSelect.value;
@@ -1850,6 +1868,117 @@ async function runMatching(){
   p.matches={universities:uni,courses,companies,learnerships,live};
   saveAppState();
   refreshOverview(); showDashPage('matches'); showMatchCat('companies');
+}
+
+/* ======================================================================
+   DOCUMENT CHECK - every file is scanned (text, or OCR for photos/scans) BEFORE it is accepted.
+   Accepted: Grade 12 results, a CV, or an ID document. Anything else asks the person to re-upload.
+   ====================================================================== */
+const DOC_LABEL = {grade12:'Grade 12 results', cv:'a CV', id:'an ID document'};
+const UPLOAD_ALLOWED = ['grade12', 'cv', 'id'];   // Upload Documents page
+const ID_ALLOWED = ['id'];                        // My Profile > ID document
+const DOC_MIN_SCORE = 5;                          // how many "clues" a document needs before we trust the match
+
+/* Which kind of document is this text? Returns {kind: 'grade12'|'cv'|'id'|null, scores}. */
+function classifyDocument(text){
+  const t = String(text || '').toLowerCase().replace(/\s+/g, ' ');
+  const sum = list => list.reduce((n, [re, w]) => n + (re.test(t) ? w : 0), 0);
+  const subjects = new Set((t.match(/mathematical literacy|mathematics|physical sciences?|life sciences?|accounting|geography|history|business studies|economics|agricultural sciences?|tourism|consumer studies|information technology|computer applications technology|engineering graphics|technical|afrikaans|isizulu|isixhosa|sesotho|setswana|english/g) || []));
+
+  let grade12 = sum([
+    [/national senior certificate/, 4], [/statement of results/, 4], [/\bnsc\b/, 2], [/senior certificate/, 2], [/umalusi/, 3],
+    [/department of basic education|basic education/, 2], [/\bgrade 12\b|\bmatric(ulation)?\b/, 1],
+    [/achievement (level|rating)|level of achievement|\blevel [1-7]\b/, 2], [/home language/, 2], [/first additional language|additional language/, 1],
+    [/life orientation/, 2], [/examination (number|year)|exam(ination)? no|candidate (number|no)|learner (number|no)/, 2],
+    [/bachelor pass|diploma pass|higher certificate pass|endorsement|distinction|subject(s)?\b.{0,40}\b(mark|result|level)/, 2]
+  ]);
+  if(subjects.size >= 4) grade12 += 2;
+  if((t.match(/\b\d{2,3} ?%/g) || []).length >= 4) grade12 += 1;
+
+  let cv = sum([
+    [/curriculum vitae|\bresume\b|résumé|\bcv\b/, 4],
+    [/work experience|employment history|professional experience|work history|career history|experience:/, 3],
+    [/career (objective|summary)|professional summary|personal (profile|statement)|\bobjective\b/, 2],
+    [/\breferences?\b|\breferees?\b/, 2], [/\bskills\b/, 1], [/\beducation\b|\bqualifications\b/, 1],
+    [/responsibilities|\bduties\b|achievements/, 1], [/personal (details|information)/, 1],
+    [/\b(19|20)\d{2} ?(-|–|to) ?((19|20)\d{2}|present|current|date)/, 2],
+    [/[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}/, 1], [/(\+27|\b0)[ -]?\d{2}[ -]?\d{3}[ -]?\d{4}/, 1]
+  ]);
+
+  // ID: needs at least one clue that is really about an identity document (a bare ID number also appears on CVs and results)
+  const idDocClue = /identity (card|document)|home affairs|republic of south africa|identiteit|smart id|green (barcoded )?(id )?book|country of birth|id book/.test(t);
+  let hasValidId = false;
+  for(const m of (t.replace(/[ -]/g, '').match(/\d{13}/g) || [])){ if(parseSAID(m).ok){ hasValidId = true; break; } }
+  let id = idDocClue ? sum([
+    [/identity (card|document|number)|\bid (card|number|no)\b|identity no/, 2], [/republic of south africa/, 2], [/home affairs/, 3],
+    [/identiteit|identiteitskaart/, 2], [/smart id|green (barcoded )?(id )?book|id book/, 3], [/\bsurname\b|\bvan\b ?\/ ?surname/, 1],
+    [/nationality|citizenship|\bcitizen\b/, 1], [/country of birth/, 2], [/date of birth/, 1], [/\b(sex|gender)\b/, 1], [/\bnames?\b/, 0]
+  ]) + (hasValidId ? 3 : 0) : 0;
+
+  const scores = {grade12, cv, id};
+  const best = Object.entries(scores).sort((a, b) => b[1] - a[1])[0];
+  return {kind: best[1] >= DOC_MIN_SCORE ? best[0] : null, scores};
+}
+
+function docList(allowed){
+  const n = allowed.map(k => DOC_LABEL[k]);
+  return n.length === 1 ? n[0] : n.slice(0, -1).join(', ') + ' or ' + n[n.length - 1];
+}
+
+/* Reads the file in this browser and decides whether it is one of the allowed documents. */
+async function scanDocument(file, progress, allowed){
+  let text = '';
+  try{ text = await extractDocumentText(file, progress || (()=>{})); }
+  catch(err){
+    return {ok:false, kind:null, text:'', message:"We couldn't check this file (" + (err.message || 'it could not be read') + "). Please try a clearer scan or photo, or check your internet connection, and upload it again."};
+  }
+  if(text.replace(/\s/g, '').length < 25){
+    return {ok:false, kind:null, text:'', message:"We couldn't read any text in this file. Please re-upload a clear, full-page scan or photo of " + docList(allowed) + "."};
+  }
+  const c = classifyDocument(text);
+  if(c.kind && allowed.includes(c.kind)) return {ok:true, kind:c.kind, text, scores:c.scores};
+  return {ok:false, kind:c.kind, text:'', message: c.kind
+    ? "This looks like " + DOC_LABEL[c.kind] + ", not " + docList(allowed) + ". Please re-upload the correct document."
+    : "This doesn't look like " + docList(allowed) + ", so we can't accept it. Please re-upload the correct document."};
+}
+
+/* ----- Upload Documents page: scan as soon as a file is chosen ----- */
+let uploadScan = null;     // {file, status:'scanning'|'ok'|'bad', ...}
+async function scanUploadFile(file){
+  const status = document.getElementById('parseStatus');
+  uploadScan = {file, status:'scanning'};
+  status.className = 'form-note'; status.textContent = 'Checking your document…';
+  const r = await scanDocument(file, msg=>{ status.textContent = msg; }, UPLOAD_ALLOWED);
+  const mine = Object.assign({file}, r, {status: r.ok ? 'ok' : 'bad'});
+  if(uploadScan && uploadScan.file === file) uploadScan = mine;
+  return mine;
+}
+function rejectUpload(scan){
+  const status = document.getElementById('parseStatus');
+  status.className = 'form-note error'; status.textContent = scan.message;
+  document.getElementById('uploadFile').value = '';
+  document.getElementById('extractedPreview').classList.add('hidden');
+  uploadScan = null;
+}
+function onUploadFileChosen(){
+  uploadScan = null;
+  const status = document.getElementById('parseStatus');
+  status.className = 'form-note'; status.textContent = '';
+  maybeScanUpload();
+}
+async function maybeScanUpload(){
+  const input = document.getElementById('uploadFile'), f = input.files[0];
+  const status = document.getElementById('parseStatus');
+  if(!f) return;
+  if(!document.getElementById('docConsent').checked){
+    status.className = 'form-note'; status.textContent = 'Tick the consent box and we will check your document.'; return;
+  }
+  if(uploadScan && uploadScan.file === f) return;
+  const scan = await scanUploadFile(f);
+  if(input.files[0] !== f) return;          // they picked another file meanwhile
+  if(!scan.ok){ rejectUpload(scan); return; }
+  status.className = 'form-note success';
+  status.textContent = '✓ Recognised as ' + DOC_LABEL[scan.kind] + '. Click Find My Matches to continue.';
 }
 
 async function extractDocumentText(file, progress){
@@ -2471,7 +2600,7 @@ const CHAT_INTENTS = [
     a:'To sign up:\n1. Click “Get Started — It’s Free” (or Sign Up).\n2. On Create Account choose what describes you: Grade 12 Learner, TVET Student/Graduate, University Student/Graduate, Job Seeker, or Employer/Company.\n3. Enter your name, email and a strong password (8+ characters with an uppercase letter, a lowercase letter, a number and a symbol), then confirm it.\n4. Individuals also enter their 13-digit South African ID number; employers enter a company name and registration number (like 2015/123456/07).\n5. Submit and you’ll land on your dashboard.',
     chips:['Why is my ID number needed?','Which account type should I pick?','How do I upload my documents?']},
   {id:'id_number', k:[[/\bid\b.*(number|document|copy|upload)|identity|why.*\bid\b|id number|south african id|13.?digit/,3]],
-    a:'Individual accounts need a valid 13-digit South African ID number. The site checks the date of birth and the check digit, so typos are caught, and one ID number can only be linked to one account. You can also upload a copy of your ID (PDF, JPG or PNG, up to 5 MB) under My Profile → Identity Verification. In this demo it stays in your browser. Please don’t type your ID number into this chat.',
+    a:'Individual accounts need a valid 13-digit South African ID number. The site checks the date of birth and the check digit, so typos are caught, and one ID number can only be linked to one account. You can also upload a copy of your ID (PDF, JPG or PNG, up to 5 MB) under My Profile → Identity Verification — it is scanned first and refused if it isn’t an ID document. In this demo it stays in your browser. Please don’t type your ID number into this chat.',
     chips:['Is my data safe?','How do I register?']},
   {id:'password_rules', k:[[/strong password|password (rules|requirements?|must|should|strength|format|criteria|characters?|symbols?|uppercase|policy)|confirm (my )?password|passwords? (do not|don.?t) match|what makes a (good|strong) password|weak password|not strong enough/,5]],
     a:'When you create an account your password must be strong: at least 8 characters, with one uppercase letter, one lowercase letter, one number and one symbol (like ! @ # $ %). You then type it a second time under Confirm Password — the two must match. A checklist and strength bar on the sign-up form show what’s still missing. Tip: a short sentence with a number and symbol is easy to remember and hard to guess. Never reuse a password from your bank or email.',
@@ -2483,10 +2612,10 @@ const CHAT_INTENTS = [
     a:'Pick the option that fits you today: Grade 12 Learner, TVET Student/Graduate, University Student/Graduate or Job Seeker — all four get the candidate dashboard (profile, uploads, matches, applications). Employer / Company gives you the business area where you post vacancies and review applicants. You can change your candidate type later in My Profile; an employer account stays an employer account.',
     chips:['How do I register?','I’m an employer']},
   {id:'upload', k:[[/upload|how do i (add|submit) (my )?(documents?|results|cv|certificate)|find my matches|add (my )?(results|cv|certificate|diploma|degree)/,3],[/document|qualification|results|\bcv\b/,1]],
-    a:'Open Upload Documents, then:\n1. Choose your highest qualification and your field of interest.\n2. Choose a file — PDF, DOCX, TXT, PNG, JPG or WEBP.\n3. Tick the consent box.\n4. Click Find My Matches.\n\nThe text is read inside your browser (scans use OCR) and used to suggest a qualification and field, which you can correct. You need at least one uploaded document before matching works.',
+    a:'Open Upload Documents, then:\n1. Choose your highest qualification and your field of interest.\n2. Tick the consent box.\n3. Choose a file — PDF, DOCX, TXT, PNG, JPG or WEBP.\n4. Click Find My Matches.\n\nEvery file is scanned first (scans and photos use OCR). Only Grade 12 results, a CV or an ID document are accepted — anything else is refused and you’re asked to re-upload the correct document. The text is used to suggest a qualification and field, which you can correct. You need at least one accepted document before matching works.',
     chips:['What files can I upload?','How do matches work?','Is my data safe?']},
   {id:'file_issues', k:[[/file (type|format|size)|which (file|format)s?|what files?|pdf|docx|scan|ocr|unreadable|can.?t read|couldn.?t read|not readable|blurry|photo of/,3]],
-    a:'Supported files: PDF, DOCX, TXT, PNG, JPG and WEBP. If the text can’t be read, try a clearer scan or a straight-on photo of the page, or upload a DOCX/TXT version. You can always choose your qualification and field manually. Only the first 12 PDF pages are read, and scanned PDFs use OCR on the first page, which can take a moment.',
+    a:'Supported files: PDF, DOCX, TXT, PNG, JPG and WEBP — and the document must be your Grade 12 results, your CV or your ID. The site scans each file first and tells you to re-upload if it is something else. If the text can’t be read, try a clearer scan or a straight-on photo of the page, or upload a DOCX/TXT version. You can always choose your qualification and field manually. Only the first 12 PDF pages are read, and scanned PDFs use OCR on the first page, which can take a moment.',
     chips:['How do I upload my documents?']},
   {id:'matches', k:[[/\bmatch(es|ing)?\b|what (do i|will i) (see|get)|opportunit|\btabs?\b/,2],[/universit(y|ies)|courses?/,1],[/how do .*work/,1]],
     a:'After you click Find My Matches you’ll see tabs for Universities, Courses, Companies & Jobs, Learnerships and Live Opportunities. They’re based on your qualification, your field and any text read from your document. The percentage is an estimated profile-fit score — not a chance of being hired or admitted. Always confirm requirements on the official website.',
