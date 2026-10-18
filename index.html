@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>CareerConnect SA — Career & Job Matching Platform</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="sitemap" type="application/xml" title="Sitemap" href="/sitemap.xml">
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 <style>
   :root{
@@ -539,7 +540,7 @@
           <h3>Step 1: Your Qualification</h3>
           <div class="field">
             <label>Highest Qualification</label>
-            <select id="uploadQualLevel">
+            <select id="uploadQualLevel" onchange="renderMarksPanel()">
               <option value="Grade 12">Grade 12 Results</option>
               <option value="Certificate">Certificate</option>
               <option value="Diploma">Diploma</option>
@@ -558,6 +559,14 @@
               <option value="Humanities">Humanities & Social Sciences</option>
             </select>
           </div>
+        </div>
+
+        <div class="panel hidden" id="marksPanel">
+          <h3>Your Grade 12 marks &amp; APS</h3>
+          <p class="form-note" style="margin:0 0 .8rem;">We read your marks from your results. Check them (fix or add any subject), then press <b>Calculate APS &amp; find courses</b>. Life Orientation is not counted in your APS.</p>
+          <div id="marksRows"></div>
+          <button class="btn btn-sm btn-ghost" type="button" onclick="addMarkRow()">+ Add subject</button>
+          <div id="apsLive" style="margin-top:1rem;font-weight:700;color:var(--indigo);"></div>
         </div>
 
         <div class="panel">
@@ -580,7 +589,7 @@
           <div class="upload-list" id="uploadedList"></div>
         </div>
 
-        <button class="btn" type="button" id="findMatchesBtn" onclick="runMatching()">Find My Matches</button>
+        <button class="btn" type="button" id="findMatchesBtn" onclick="runMatching()">Calculate APS &amp; Find My Matches</button>
         <p class="form-note" style="margin-top:.6rem;">Upload your qualification document first. Recommendations and estimated fit percentages use your selected qualification, field and readable document text. Percentages are guidance only, not guaranteed chances of acceptance.</p>
       </div>
 
@@ -596,10 +605,10 @@
           <div class="tabbar">
             <button data-cat="universities" onclick="showMatchCat('universities')" class="active">Universities</button>
             <button data-cat="courses" onclick="showMatchCat('courses')">Courses</button>
-            <button data-cat="companies" onclick="showMatchCat('companies')">Companies & Jobs</button>
-            <button data-cat="learnerships" onclick="showMatchCat('learnerships')">Learnerships</button>
-             <button data-cat="live" onclick="showMatchCat('live')">Live Opportunities ↗</button>
+            <button data-cat="companies" onclick="showMatchCat('companies')">Jobs</button>
+            <button data-cat="learnerships" onclick="showMatchCat('learnerships')">Learnerships & Internships</button>
           </div>
+          <div id="apsBanner" class="hidden"></div>
           <div class="match-grid" id="matchGrid"></div>
         </div>
       </div>
@@ -667,10 +676,19 @@
 
       <!-- BUSINESS VACANCIES -->
       <div class="biz-page hidden" id="bpage-vacancies">
-        <div class="dash-header"><div><h2>Vacancies</h2><p>Post a role and it appears in the matches of candidates in that industry.</p></div></div>
+        <div class="dash-header"><div><h2>Vacancies</h2><p>Post a job, learnership or internship. It appears on the profile of every job seeker whose qualification (and APS) meets your requirements, and you can reply to each applicant.</p></div></div>
         <div class="panel">
           <h3>Post a vacancy</h3>
           <form onsubmit="return postVacancy(event)">
+            <div class="form-row">
+              <div class="field"><label>Opportunity type</label>
+                <select id="vacType"><option value="Job">Job</option><option value="Learnership">Learnership</option><option value="Internship">Internship</option></select>
+              </div>
+              <div class="field"><label>Minimum qualification</label>
+                <select id="vacQual"><option value="Grade 12">Grade 12</option><option value="Certificate">Certificate</option><option value="Diploma">Diploma</option><option value="Degree">Degree</option></select>
+              </div>
+              <div class="field"><label>Minimum APS (Grade 12 only, optional)</label><input type="number" id="vacAps" min="0" max="49" placeholder="e.g. 20"></div>
+            </div>
             <div class="field"><label>Job Title</label><input type="text" id="vacTitle" required placeholder="Junior Software Developer"></div>
             <div class="form-row">
               <div class="field"><label>Industry</label>
@@ -755,9 +773,35 @@ const COURSES = [
   {name:"LLB Law", field:"Law", level:["Grade 12"], desc:"Foundational law degree for attorneys and advocates."},
   {name:"Bachelor of Education (Foundation Phase)", field:"Education", level:["Grade 12"], desc:"Teaching qualification for Grade R-3 classrooms."},
   {name:"BA Psychology", field:"Humanities", level:["Grade 12"], desc:"Human behaviour, counselling pathways and social sciences."},
+  {name:"BCom Economics", field:"Business", level:["Grade 12"], desc:"Economic theory, finance and policy analysis."},
+  {name:"Diploma in Business Management", field:"Business", level:["Grade 12","Certificate"], desc:"Practical management, marketing and entrepreneurship skills."},
   {name:"Postgraduate Diploma in Business Analysis", field:"Business", level:["Diploma","Degree"], desc:"For diploma/degree holders moving into business analysis roles."},
   {name:"Advanced Diploma in ICT", field:"IT", level:["Diploma","Degree"], desc:"Progression route for IT diploma holders into specialised systems roles."},
 ];
+
+/* Indicative entry requirements (APS + minimum subject marks). Always confirm on the institution's website. */
+const COURSE_REQ = {
+  "BCom Accounting":{aps:30,kind:"degree",subj:{Mathematics:60,English:50}},
+  "BCom Business Management":{aps:26,kind:"degree",subj:{Mathematics:50,English:50}},
+  "BCom Economics":{aps:30,kind:"degree",subj:{Mathematics:60,English:50}},
+  "Higher Certificate in Retail Business Management":{aps:18,kind:"diploma",subj:{English:40}},
+  "Diploma in Business Management":{aps:22,kind:"diploma",subj:{English:50}},
+  "BSc Computer Science":{aps:30,kind:"degree",subj:{Mathematics:60,English:50}},
+  "Diploma in Information Technology":{aps:24,kind:"diploma",subj:{Mathematics:50,English:50}},
+  "BEng Civil Engineering":{aps:34,kind:"degree",subj:{Mathematics:70,"Physical Sciences":60,English:50}},
+  "National Diploma: Electrical Engineering":{aps:24,kind:"diploma",subj:{Mathematics:50,"Physical Sciences":50}},
+  "MBChB Medicine":{aps:40,kind:"degree",subj:{Mathematics:70,"Physical Sciences":70,"Life Sciences":70,English:60}},
+  "Diploma in Nursing":{aps:22,kind:"diploma",subj:{English:50,"Life Sciences":50}},
+  "LLB Law":{aps:30,kind:"degree",subj:{English:60}},
+  "Bachelor of Education (Foundation Phase)":{aps:26,kind:"degree",subj:{English:50}},
+  "BA Psychology":{aps:28,kind:"degree",subj:{English:60}}
+};
+const UNI_OFFSET = {"University of Cape Town (UCT)":8,"University of the Witwatersrand (Wits)":6,"University of Pretoria (UP)":2,"Stellenbosch University":6,
+  "University of Johannesburg (UJ)":0,"University of KwaZulu-Natal (UKZN)":0,"Nelson Mandela University":-2,"North-West University (NWU)":-2,
+  "University of South Africa (UNISA)":-4,"Tshwane University of Technology (TUT)":-2,"Cape Peninsula University of Technology (CPUT)":-2,"Durban University of Technology (DUT)":-2};
+const UNI_KINDS = {"Tshwane University of Technology (TUT)":["diploma"],"Cape Peninsula University of Technology (CPUT)":["diploma"],"Durban University of Technology (DUT)":["diploma"]};
+const MARK_SUBJECTS = [["English","english"],["Mathematics","mathematics(?! literacy)"],["Mathematical Literacy","mathematical literacy"],["Physical Sciences","physical sciences?"],["Life Sciences","life sciences?"],["Accounting","accounting"],["Business Studies","business studies"],["Economics","economics"],["Geography","geography"],["History","history"],["Information Technology","information technology"],["Life Orientation","life orientation"]];
+const LEVEL_RANK = {"Grade 12":1,"Certificate":2,"Diploma":3,"Degree":4,"Postgraduate":5};
 
 const COMPANIES = [
   {name:"Standard Bank", industry:"Business", location:"Johannesburg, GP", roles:["Graduate Trainee: Banking", "Junior Financial Analyst"]},
@@ -911,10 +955,16 @@ const userRow = u => ({email:u.email, name:u.name, role:u.role, company:u.compan
 const rowUser = r => ({name:r.name, email:r.email, role:r.role, company:r.company, regNo:r.reg_no, phone:r.phone,
   verification:r.verification, verifyNote:r.verify_note||'', contactVerified:!!r.contact_verified, verifiedVia:r.verified_via,
   verifiedAt:r.verified_at, firebaseUid:r.firebase_uid});
+/* vacancy type / minimum qualification / minimum APS travel inside the description text, so no new database columns are needed */
+const packVac = v => '[[t=' + (v.type||'Job') + ';q=' + (v.minQual||'Grade 12') + ';a=' + (v.minAps||0) + ']]' + (v.desc||'');
+function unpackVac(d){
+  const m = String(d||'').match(/^\[\[t=([^;]*);q=([^;]*);a=(\d*)\]\]([\s\S]*)$/);
+  return m ? {type:m[1], minQual:m[2], minAps:Number(m[3])||0, desc:m[4]} : {type:'Job', minQual:'Grade 12', minAps:0, desc:String(d||'')};
+}
 const vacRow = v => ({id:v.id, owner_email:v.ownerEmail, company:v.company, title:v.title, field:v.field, location:v.location,
-  description:v.desc||'', closed:!!v.closed, date_label:v.date});
-const rowVac = r => ({id:r.id, ownerEmail:r.owner_email, company:r.company, title:r.title, field:r.field, location:r.location,
-  desc:r.description||'', closed:!!r.closed, date:r.date_label});
+  description:packVac(v), closed:!!v.closed, date_label:v.date});
+const rowVac = r => Object.assign({id:r.id, ownerEmail:r.owner_email, company:r.company, title:r.title, field:r.field, location:r.location,
+  closed:!!r.closed, date:r.date_label}, unpackVac(r.description));
 const appRow = (a, email) => ({id:a.id, candidate_email:email, vacancy_id:a.vacancyId||null, name:a.name, type:a.type,
   status:a.status, date_label:a.date, ts:a.ts, feedback:a.feedback||''});
 const rowApp = r => ({id:r.id, name:r.name, type:r.type, status:r.status, date:r.date_label, ts:Number(r.ts)||0,
@@ -1014,7 +1064,8 @@ async function cloudLoadAccount(email){
   ]);
   const p = emptyProfile();
   if(prof[0]) Object.assign(p, {qualLevel:prof[0].qual_level, field:prof[0].field, docs:prof[0].docs||[], emailAlerts:prof[0].email_alerts!==false,
-    extractedFile:prof[0].extracted_file||'', extractedText:prof[0].extracted_text||'', matches:prof[0].matches||null});
+    extractedFile:prof[0].extracted_file||'', extractedText:prof[0].extracted_text||'', matches:prof[0].matches||null,
+    aps:(prof[0].matches&&prof[0].matches.aps!=null)?prof[0].matches.aps:null, marks:(prof[0].matches&&prof[0].matches.marks)||[]});
   if(idr[0]){
     p.idNumber = idr[0].id_number || '';
     if(idr[0].doc_path){
@@ -1041,7 +1092,7 @@ async function cloudLoadShared(user){
     if(emails.length){
       [urows, prows] = await Promise.all([
         dbGet('cc_users', 'select=email,name,role&email=in.' + sbList(emails)),
-        dbGet('cc_profiles', 'select=email,qual_level,field,docs&email=in.' + sbList(emails))    // no ID details, no CV text
+        dbGet('cc_profiles', 'select=email,qual_level,field,docs,matches&email=in.' + sbList(emails))    // no ID details, no CV text
       ]);
     }
   }
@@ -1050,7 +1101,7 @@ async function cloudLoadShared(user){
   urows.forEach(r=>{
     users.push({name:r.name, email:r.email, role:r.role});
     const pr = prows.find(x=>x.email===r.email), p = emptyProfile();
-    if(pr){ p.qualLevel = pr.qual_level; p.field = pr.field; p.docs = pr.docs || []; }
+    if(pr){ p.qualLevel = pr.qual_level; p.field = pr.field; p.docs = pr.docs || []; p.aps = pr.matches && pr.matches.aps != null ? pr.matches.aps : null; p.marks = (pr.matches && pr.matches.marks) || []; }
     profiles[r.email] = p;
   });
   arows.forEach(r=>{ const p = profiles[r.candidate_email]; if(p) p.applications.push(rowApp(r)); });
@@ -1092,7 +1143,7 @@ function cloudRerender(){
   if(t && /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName)) return;      // never disturb someone who is typing
   cloudShownSig = cloudSignature();
   if(isEmployer(CURRENT)){ if(!document.getElementById('view-business').classList.contains('hidden')) refreshBiz(); }
-  else if(!document.getElementById('view-dashboard').classList.contains('hidden')){ refreshApplications(); renderNotifications(); refreshOverview(); }
+  else if(!document.getElementById('view-dashboard').classList.contains('hidden')){ refreshApplications(); renderNotifications(); refreshOverview(); if(PROFILES[CURRENT.email]&&PROFILES[CURRENT.email].matches&&!document.getElementById('page-matches').classList.contains('hidden')) showMatchCat(activeMatchCat); }
 }
 function cloudStartTimer(){
   cloudStopTimer();
@@ -1560,6 +1611,7 @@ function renderNotifications(){
 }
 
 function showDashPage(page){
+  if(page==='upload') setTimeout(renderMarksPanel,0);
   if(CLOUD) cloudRefresh();
   document.querySelectorAll('.dash-page').forEach(p=>p.classList.add('hidden'));
   document.getElementById('page-'+page).classList.remove('hidden');
@@ -1773,7 +1825,7 @@ async function saveIdDetails(){
 function refreshOverview(){
   const p = PROFILES[CURRENT.email];
   document.getElementById('statDocs').textContent = p.docs.length;
-  const totalMatches = p.matches ? ['universities','courses','companies','learnerships','live'].reduce((n,c)=>n+getMatchItems(p,c).length,0) : 0;
+  const totalMatches = p.matches ? ['universities','courses','companies','learnerships'].reduce((n,c)=>n+getMatchItems(p,c).length,0) : 0;
   document.getElementById('statMatches').textContent = totalMatches;
   document.getElementById('statApps').textContent = p.applications.length;
 
@@ -1784,6 +1836,81 @@ function refreshOverview(){
     nudge.textContent = "You've uploaded documents — run matching to see your universities, courses, companies and learnerships.";
   } else {
     nudge.textContent = "You have " + totalMatches + " matches waiting. Review them and apply to the ones you like.";
+  }
+}
+
+/* ======================================================================
+   GRADE 12: marks -> APS -> qualifying courses per university
+   ====================================================================== */
+function g12Parse(text){
+  const out = [];
+  String(text||'').split(/\n|\r/).forEach(line=>{
+    const l = line.toLowerCase();
+    let name = null;
+    for(const [n,re] of MARK_SUBJECTS){ if(new RegExp(re).test(l)){ name = n; break; } }
+    if(!name){
+      if(/\b(afrikaans|isizulu|isixhosa|sesotho|setswana|sepedi|xitsonga|tshivenda|siswati|isindebele)\b/.test(l)) name = (l.match(/afrikaans|isizulu|isixhosa|sesotho|setswana|sepedi|xitsonga|tshivenda|siswati|isindebele/)||['Language'])[0];
+      else if(/\b(tourism|geography|agricultural|consumer studies|visual arts|dramatic arts|computer applications|engineering graphics|technology)\b/.test(l)) name = line.trim().replace(/[^A-Za-z ].*$/,'').trim().slice(0,30) || 'Subject';
+    }
+    if(!name) return;
+    const rest = line.replace(/[A-Za-z][A-Za-z ().&-]*/,' ');
+    const nums = (rest.match(/\d{1,3}/g)||[]).map(Number).filter(n=>n<=100);
+    if(!nums.length) return;
+    const mark = Math.max.apply(null, nums);                     // level (1-7) is always smaller than the % mark
+    const cap = name.charAt(0).toUpperCase()+name.slice(1);
+    if(!out.some(o=>o.subject===cap)) out.push({subject:cap, mark});
+  });
+  return out;
+}
+function g12Aps(marks){
+  const counted = marks.filter(m=>!/life orientation/i.test(m.subject) && m.mark!=='' && !isNaN(m.mark));
+  const pts = counted.map(m=>({subject:m.subject, mark:Number(m.mark), pts:apsPoints(Number(m.mark))})).sort((a,b)=>b.pts-a.pts||b.mark-a.mark);
+  const best = pts.slice(0,6);
+  return {aps:best.reduce((n,x)=>n+x.pts,0), subjects:best, counted:counted.length};
+}
+function markOf(marks, subj){
+  if(subj==='English'){ const e = marks.find(m=>/^english/i.test(m.subject)); return e?Number(e.mark):0; }
+  const e = marks.find(m=>m.subject.toLowerCase()===subj.toLowerCase());
+  return e?Number(e.mark):0;
+}
+function courseReq(c){ return COURSE_REQ[c.name] || {aps:24,kind:/diploma|certificate/i.test(c.name)?'diploma':'degree',subj:{}}; }
+/* subject requirements the learner misses; [] means all met */
+function subjectGaps(marks, req){
+  return Object.entries(req.subj||{}).filter(([s,min])=>markOf(marks,s)<min).map(([s,min])=>s+' '+min+'%');
+}
+function uniCourseList(uni, marks, aps){
+  const kinds = UNI_KINDS[uni.name] || (/Johannesburg \(UJ\)|UNISA/.test(uni.name) ? ['degree','diploma'] : ['degree']);
+  const off = UNI_OFFSET[uni.name]||0;
+  return COURSES.filter(c=>c.level.includes('Grade 12') && uni.fields.includes(c.field)).map(c=>{
+    const r = courseReq(c); const need = Math.max(14, r.aps + off);
+    return {name:c.name, kind:r.kind, need, gaps:subjectGaps(marks, r), ok: kinds.includes(r.kind) && aps>=need && subjectGaps(marks, r).length===0, offered:kinds.includes(r.kind)};
+  }).filter(x=>x.offered);
+}
+function readMarksTable(){
+  return [...document.querySelectorAll('#marksRows .mark-row')].map(r=>({subject:r.querySelector('.mk-s').value.trim(), mark:r.querySelector('.mk-m').value})).filter(m=>m.subject && m.mark!=='' ).map(m=>({subject:m.subject, mark:Number(m.mark)}));
+}
+function addMarkRow(subject, mark){
+  const box = document.getElementById('marksRows');
+  const row = document.createElement('div'); row.className='mark-row'; row.style.cssText='display:flex;gap:.6rem;margin-bottom:.5rem;';
+  row.innerHTML = '<input class="mk-s" style="flex:2;padding:.6rem;border:1.5px solid var(--line);border-radius:8px;" placeholder="Subject" value="'+esc(subject||'')+'"><input class="mk-m" type="number" min="0" max="100" style="flex:1;padding:.6rem;border:1.5px solid var(--line);border-radius:8px;" placeholder="%" value="'+(mark===undefined?'':mark)+'"><button type="button" class="btn btn-sm btn-ghost" aria-label="Remove subject">✕</button>';
+  row.querySelector('button').onclick = ()=>{ row.remove(); updateApsLive(); };
+  row.querySelectorAll('input').forEach(i=>i.addEventListener('input', updateApsLive));
+  box.appendChild(row);
+}
+function setMarksTable(marks){
+  document.getElementById('marksRows').innerHTML='';
+  const base = marks.length ? marks : ['English','Mathematics','Physical Sciences','Life Sciences','Accounting','Life Orientation'].map(s=>({subject:s,mark:''}));
+  base.forEach(m=>addMarkRow(m.subject,m.mark)); updateApsLive();
+}
+function updateApsLive(){
+  const r = g12Aps(readMarksTable()); const el = document.getElementById('apsLive'); if(!el) return;
+  el.textContent = r.counted ? 'Your APS: '+r.aps+' (best '+Math.min(6,r.counted)+' subjects, Life Orientation excluded)' : '';
+}
+function renderMarksPanel(){
+  const isG12 = document.getElementById('uploadQualLevel').value==='Grade 12';
+  document.getElementById('marksPanel').classList.toggle('hidden', !isG12);
+  if(isG12 && !document.querySelector('#marksRows .mark-row')){
+    const p = CURRENT && PROFILES[CURRENT.email]; setMarksTable((p&&p.marks)||[]);
   }
 }
 
@@ -1858,16 +1985,40 @@ async function runMatching(){
   }
   refreshUploadList();
   p.qualLevel=qualSelect.value; p.field=fieldSelect.value;
-  const uni=UNIVERSITIES.filter(u=>u.fields.includes(p.field)&&u.minLevel.includes(p.qualLevel)).map(u=>({...u,pct:estimateFit(u.name+' '+(u.apsHint||''),p.field,p.qualLevel,p.extractedText,'study')})).sort((a,b)=>b.pct-a.pct);
-  const courses=COURSES.filter(c=>c.field===p.field&&c.level.includes(p.qualLevel)).map(c=>({...c,pct:estimateFit(c.name+' '+c.desc,p.field,p.qualLevel,p.extractedText,'study')})).sort((a,b)=>b.pct-a.pct);
-  // Do not fabricate employers or vacancies. Current opportunities are found through source/portal search links below.
-  const live=buildLiveOpportunityLinks(p.field,p.qualLevel,p.extractedText).map(x=>({...x,pct:estimateFit(x.name+' '+x.detail,p.field,p.qualLevel,p.extractedText,x.kind||'job')}));
-  const posted=VACANCIES.filter(v=>!v.closed && v.ownerEmail!==CURRENT.email && v.field===p.field).map(v=>({name:v.title,location:v.location,field:v.field,desc:v.desc,company:v.company,pct:estimateFit(v.title+' '+v.desc,p.field,p.qualLevel,p.extractedText,'job'),vacancy:{id:v.id},custom:true}));
-  const companies=posted.concat(live.filter(x=>/LinkedIn Jobs|Careers24|Indeed South Africa|SAYouth|DPSA public/i.test(x.name)));
-  const learnerships=live.filter(x=>/Learnerships and internships|SAYouth/i.test(x.name));
-  p.matches={universities:uni,courses,companies,learnerships,live};
+  let uni, courses, aps=null, marks=[];
+  if(p.qualLevel==='Grade 12'){
+    // 1) marks: from the table (user-corrected) or read from the results document
+    renderMarksPanel();
+    marks = readMarksTable();
+    if(marks.length<4 && extracted.trim()){ const parsed = g12Parse(extracted); if(parsed.length){ setMarksTable(parsed); marks = readMarksTable(); } }
+    const calc = g12Aps(marks);
+    if(calc.counted<6){
+      status.className='form-note error';
+      status.textContent='We could only find '+calc.counted+' subject mark(s) (6 are needed besides Life Orientation). Please type your marks into the "Your Grade 12 marks" table above, then press the button again.';
+      saveAppState(); return;
+    }
+    aps = calc.aps; p.marks = marks; p.aps = aps;
+    // 2) universities: only those where the learner qualifies for at least one course, each with its courses
+    uni = UNIVERSITIES.map(u=>{
+      const list = uniCourseList(u, marks, aps);
+      const qualifying = list.filter(x=>x.ok), almost = list.filter(x=>!x.ok && aps>=x.need-3 && x.gaps.length===0);
+      return {...u, qualifying, almost, pct:Math.max(35,Math.min(95,50+qualifying.length*8)), apsHint:u.apsHint};
+    }).filter(u=>u.qualifying.length>0).sort((a,b)=>b.qualifying.length-a.qualifying.length);
+    // 3) courses: every course the learner qualifies for at some institution
+    courses = COURSES.filter(c=>c.level.includes('Grade 12')).map(c=>{
+      const r = courseReq(c);
+      const at = UNIVERSITIES.filter(u=>u.fields.includes(c.field)).map(u=>({u, x:uniCourseList(u,marks,aps).find(x=>x.name===c.name)})).filter(o=>o.x&&o.x.ok).map(o=>o.u.name);
+      return {...c, need:r.aps, at, pct:Math.max(40,Math.min(95,60+(aps-r.aps)*2))};
+    }).filter(c=>c.at.length>0).sort((a,b)=>b.pct-a.pct);
+  } else {
+    uni=UNIVERSITIES.filter(u=>u.fields.includes(p.field)&&u.minLevel.includes(p.qualLevel)).map(u=>({...u,pct:estimateFit(u.name+' '+(u.apsHint||''),p.field,p.qualLevel,p.extractedText,'study')})).sort((a,b)=>b.pct-a.pct);
+    courses=COURSES.filter(c=>c.field===p.field&&c.level.includes(p.qualLevel)).map(c=>({...c,pct:estimateFit(c.name+' '+c.desc,p.field,p.qualLevel,p.extractedText,'study')})).sort((a,b)=>b.pct-a.pct);
+    p.aps=null; p.marks=[];
+  }
+  // Jobs / learnerships / internships are NOT stored here: they are worked out live from vacancies posted by registered companies.
+  p.matches={universities:uni,courses,companies:[],learnerships:[],live:[],aps,marks};
   saveAppState();
-  refreshOverview(); showDashPage('matches'); showMatchCat('companies');
+  refreshOverview(); showDashPage('matches'); showMatchCat(p.qualLevel==='Grade 12'?'universities':'companies');
 }
 
 /* ======================================================================
@@ -2091,7 +2242,24 @@ function fieldLabel(f){
 
 /* Opportunity listings are not fabricated. Live category links out to search/source pages. */
 function scoreFor(seed){ return 70; }
-function getMatchItems(p, cat){ return (p.matches && p.matches[cat]) || []; }
+/* only vacancies posted by companies registered on this site; nothing is invented */
+function registeredVacancy(v){ return !v.closed && (CLOUD || USERS.some(u=>u.email===v.ownerEmail && isEmployer(u))); }
+function vacancyMatches(p, types){
+  const rank = LEVEL_RANK[p.qualLevel]||0;
+  return VACANCIES.filter(v=>registeredVacancy(v) && types.includes(v.type||'Job') && (!CURRENT || v.ownerEmail!==CURRENT.email))
+    .filter(v=> rank >= (LEVEL_RANK[v.minQual||'Grade 12']||1))                                   // qualification must meet the requirement
+    .filter(v=> !(v.minAps && p.qualLevel==='Grade 12' && (p.aps==null || p.aps < v.minAps)))     // APS requirement for school leavers
+    .map(v=>{
+      const sameField = v.field===p.field;
+      return {name:v.title, company:v.company, location:v.location, field:v.field, desc:v.desc, type:v.type||'Job', minQual:v.minQual||'Grade 12', minAps:v.minAps||0,
+        vacancy:{id:v.id}, custom:true, sameField, pct:Math.min(95, estimateFit(v.title+' '+v.desc,p.field,p.qualLevel,p.extractedText,'job') + (sameField?5:-10))};
+    }).sort((a,b)=>(b.sameField-a.sameField)||b.pct-a.pct);
+}
+function getMatchItems(p, cat){
+  if(cat==='companies') return p.qualLevel ? vacancyMatches(p,['Job']) : [];
+  if(cat==='learnerships') return p.qualLevel ? vacancyMatches(p,['Learnership','Internship']) : [];
+  return (p.matches && p.matches[cat]) || [];
+}
 
 function showMatchCat(cat){
   activeMatchCat = cat;
@@ -2100,9 +2268,18 @@ function showMatchCat(cat){
   const grid = document.getElementById('matchGrid');
   grid.innerHTML = '';
   const items = getMatchItems(p, cat);
+  const banner = document.getElementById('apsBanner');
+  if(p.aps!=null && p.qualLevel==='Grade 12'){
+    const c = g12Aps(p.marks||[]);
+    banner.className='live-note';
+    banner.innerHTML = '<b>Your APS: '+p.aps+'</b> · '+c.subjects.map(x=>esc(x.subject)+' '+x.mark+'% ('+x.pts+')').join(' · ')+'<br><span style="font-size:.78rem">Best 6 subjects, Life Orientation excluded. Course requirements are indicative; confirm with each institution.</span>';
+  } else { banner.className='hidden'; banner.innerHTML=''; }
 
   if(items.length===0){
-    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><div class="ico">🔍</div><p>No ${cat} matched your current qualification and field yet. Try a different field of interest on the Upload page.</p></div>`;
+    const msg = (cat==='companies'||cat==='learnerships')
+      ? 'No '+(cat==='companies'?'jobs':'learnerships or internships')+' are available right now. Only vacancies posted by companies registered on CareerConnect SA are shown, and none match your qualification yet. Check back soon.'
+      : (p.aps!=null ? 'Your APS of '+p.aps+' does not meet the requirements we have on file yet. Check your marks or explore diplomas and higher certificates.' : 'Nothing matched your current qualification and field yet. Try a different field on the Upload page.');
+    grid.innerHTML = `<div class="empty" style="grid-column:1/-1;"><div class="ico">🔍</div><p>${esc(msg)}</p></div>`;
     return;
   }
 
@@ -2116,6 +2293,26 @@ function showMatchCat(cat){
       grid.appendChild(card); return;
     }
 
+    if(cat==='universities' && item.qualifying){
+      const rows = item.qualifying.map(c=>`<li>✅ ${esc(c.name)} <span style="color:var(--ink-soft)">(needs APS ${c.need})</span></li>`).join('');
+      const near = (item.almost||[]).slice(0,3).map(c=>`<li>⚠️ ${esc(c.name)} <span style="color:var(--ink-soft)">(needs APS ${c.need})</span></li>`).join('');
+      card.innerHTML = `<div class="score" data-pct="${item.pct}" style="--pct:${item.pct};"></div><h4>${esc(item.name)}</h4><div class="sub">${esc(item.location)}</div>
+        <div class="meta"><b>Courses you qualify for (${item.qualifying.length}):</b><ul style="margin:.4rem 0 0 1rem;font-size:.82rem;">${rows}</ul>${near?`<div style="margin-top:.5rem"><b>Just below the APS:</b><ul style="margin:.3rem 0 0 1rem;font-size:.82rem;">${near}</ul></div>`:''}</div><button class="btn btn-sm" ${p.applications.some(a=>!a.vacancyId&&a.name===item.name)?'disabled':''}>${p.applications.some(a=>!a.vacancyId&&a.name===item.name)?'Saved ✓':'Save interest'}</button>`;
+      card.querySelector('button').addEventListener('click', ()=>applyTo('University', item.name, null));
+      grid.appendChild(card); return;
+    }
+    if(cat==='courses' && item.at){
+      card.innerHTML = `<div class="score" data-pct="${item.pct}" style="--pct:${item.pct};"></div><h4>${esc(item.name)}</h4><div class="sub">${esc(fieldLabel(item.field))} · typical APS ${item.need}+</div><div class="meta">${esc(item.desc)}<br><b>You qualify at:</b> ${item.at.map(esc).join(', ')}</div><button class="btn btn-sm" ${p.applications.some(a=>!a.vacancyId&&a.name===item.name)?'disabled':''}>${p.applications.some(a=>!a.vacancyId&&a.name===item.name)?'Saved ✓':'Save interest'}</button>`;
+      card.querySelector('button').addEventListener('click', ()=>applyTo('Course', item.name, null));
+      grid.appendChild(card); return;
+    }
+    if(item.vacancy && (cat==='companies'||cat==='learnerships')){
+      const reqLine = 'Requires: '+item.minQual+(item.minAps?' · APS '+item.minAps+'+':'');
+      const done = p.applications.some(a=>a.vacancyId===item.vacancy.id);
+      card.innerHTML = `<div class="score" data-pct="${item.pct}" style="--pct:${item.pct};"></div><span class="pill pill-emerald">${esc(item.type)} · Hiring now</span>${item.sameField?'':' <span class="pill pill-indigo">Other field</span>'}<h4>${esc(item.name)}</h4><div class="sub">${esc(item.company)} · ${esc(item.location)}</div><div class="meta">${esc(item.desc||'Posted by a registered company on CareerConnect SA.')}<br><b>${esc(reqLine)}</b></div><button class="btn btn-sm" ${done?'disabled':''}>${done?'Applied ✓':'Apply'}</button>`;
+      card.querySelector('button').addEventListener('click', ()=>applyTo(item.type, item.name+' — '+item.company, item.vacancy.id));
+      grid.appendChild(card); return;
+    }
     if(cat==='universities'){
       title = item.name; sub = item.location; meta = item.apsHint; appName = item.name; appType='University';
     } else if(cat==='courses'){
@@ -2160,7 +2357,8 @@ function applyTo(type, name, vacancyId){
   };
   p.applications.push(app);
   const vac = vacancyId ? VACANCIES.find(x=>x.id===vacancyId) : null;
-  const tellOwner = ()=>{ if(vac) notifyUser(vac.ownerEmail,'New job application',CURRENT.name+' applied for '+vac.title+'.'); };
+  if(vac) app.name = vac.title;
+  const tellOwner = ()=>{ if(vac) notifyUser(vac.ownerEmail,'New application',CURRENT.name+' applied for '+vac.title+'.'); };
   if(CLOUD){
     const me = CURRENT.email;
     cloudRun(dbInsert('cc_applications', appRow(app, me)).then(tellOwner), ()=>{      // couldn't save: take it off the screen again
@@ -2186,7 +2384,7 @@ function refreshApplications(){
     const row = document.createElement('div');
     row.className = 'app-row';
     const note = a.status==='Accepted' ? ' · The employer accepted your application' : '';
-    const feedback = a.feedback ? `<div class="type" style="margin-top:.35rem;color:var(--indigo)"><b>Company feedback:</b> ${esc(a.feedback)}</div>` : '';
+    const feedback = a.feedback ? `<div class="type" style="margin-top:.35rem;color:var(--indigo)"><b>Company reply:</b> ${esc(a.feedback)}</div>` : '';
     const vacancy = a.vacancyId ? VACANCIES.find(v=>v.id===a.vacancyId) : null;
     const companyLine = vacancy ? `<div class="type">Company: ${esc(vacancy.company)}</div>` : '';
     row.innerHTML = `
@@ -2356,7 +2554,8 @@ function refreshBizApplications(){
 
   rows.forEach(({a,u,p})=>{
     const vac = VACANCIES.find(v=>v.id===a.vacancyId);
-    const qual = p.qualLevel ? `${esc(p.qualLevel)} · ${esc(fieldLabel(p.field))}` : 'Not provided';
+    const qual = p.qualLevel ? `${esc(p.qualLevel)} · ${esc(fieldLabel(p.field))}${p.aps!=null?' · APS '+p.aps:''}` : 'Not provided';
+    const marksLine = (p.marks&&p.marks.length) ? '<div>Marks: '+p.marks.map(m=>esc(m.subject)+' '+m.mark+'%').join(', ')+'</div>' : '';
     const docs = p.docs.length ? p.docs.map(d=>'📄 '+esc(d)).join('<br>') : 'None uploaded';
     const dis = CURRENT.verification==='verified' ? '' : 'disabled';
     const actions = a.status==='Pending'
@@ -2373,10 +2572,10 @@ function refreshBizApplications(){
       </div>
       <div class="biz-app-body">
         <div>Applied for <b>${esc(vac ? vac.title : a.name)}</b> · ${a.date}</div>
-        <div>Qualification: <b>${qual}</b></div>
+        <div>Qualification: <b>${qual}</b></div>${marksLine}
         <div>Documents:<br>${docs}</div>
       </div>
-      <div class="field" style="margin-top:.8rem"><label>Feedback for candidate (shown on their profile)</label><textarea id="feedback-${a.id}" placeholder="Share interview details, next steps or constructive feedback">${esc(a.feedback||'')}</textarea><button class="btn btn-sm btn-ghost" style="margin-top:.4rem" onclick="saveFeedback('${a.id}')">Save feedback</button></div>
+      <div class="field" style="margin-top:.8rem"><label>Reply to this applicant (they see it on their profile and get a notification)</label><textarea id="feedback-${a.id}" placeholder="e.g. Please come for an interview on Friday at 10:00, or thank you for applying...">${esc(a.feedback||'')}</textarea><button class="btn btn-sm btn-ghost" style="margin-top:.4rem" onclick="saveFeedback('${a.id}')">Send reply</button></div>
       <div class="biz-app-actions">${actions}</div>
     `;
     list.appendChild(card);
@@ -2395,8 +2594,8 @@ function saveFeedback(id){
   const hit=bizApplications().find(x=>x.a.id===id); if(!hit) return;
   hit.a.feedback=document.getElementById('feedback-'+id).value.trim();
   if(CLOUD) cloudRun(dbPatch('cc_applications', 'id=' + eqs(id), {feedback: hit.a.feedback}));
-  if(hit.a.feedback) notifyUser(hit.u.email,'Company feedback received',CURRENT.company+' left feedback on your application for '+hit.a.name+'.');
-  saveAppState(); refreshBizApplications(); alert('Feedback saved and shown on the candidate profile.');
+  if(hit.a.feedback) notifyUser(hit.u.email,'Reply from '+CURRENT.company,CURRENT.company+' replied to your application for '+hit.a.name+': '+hit.a.feedback);
+  saveAppState(); refreshBizApplications(); alert('Reply sent. The applicant can now see it on their profile.');
 }
 
 function postVacancy(e){
@@ -2406,11 +2605,13 @@ function postVacancy(e){
   const field = document.getElementById('vacField').value;
   const location = document.getElementById('vacLocation').value.trim();
   const desc = document.getElementById('vacDesc').value.trim();
+  const type = document.getElementById('vacType').value, minQual = document.getElementById('vacQual').value;
+  const minAps = minQual==='Grade 12' ? (parseInt(document.getElementById('vacAps').value,10)||0) : 0;
   if(!title || !location) return false;
 
   const vac = {
     id:newId('vac'), ownerEmail:CURRENT.email, company:CURRENT.company,
-    title, field, location, desc, closed:false, date:new Date().toLocaleDateString('en-ZA')
+    title, field, location, desc, type, minQual, minAps, closed:false, date:new Date().toLocaleDateString('en-ZA')
   };
   VACANCIES.push(vac);
   if(CLOUD) cloudRun(dbInsert('cc_vacancies', vacRow(vac)), ()=>{ VACANCIES = VACANCIES.filter(x=>x!==vac); refreshBiz(); });
@@ -2447,8 +2648,8 @@ function refreshBizVacancies(){
     row.className = 'app-row';
     row.innerHTML = `
       <div>
-        <div class="name">${esc(v.title)} <span class="pill ${v.closed?'pill-amber':'pill-emerald'}" style="margin-left:.4rem;">${v.closed?'Closed':'Open'}</span></div>
-        <div class="type">${esc(fieldLabel(v.field))} · ${esc(v.location)} · Posted ${v.date} · ${mine.length} applicant${mine.length===1?'':'s'}${pend?` (${pend} pending)`:''}</div>
+        <div class="name">${esc(v.title)} <span class="pill pill-indigo" style="margin-left:.4rem;">${esc(v.type||'Job')}</span> <span class="pill ${v.closed?'pill-amber':'pill-emerald'}" style="margin-left:.2rem;">${v.closed?'Closed':'Open'}</span></div>
+        <div class="type">Requires ${esc(v.minQual||'Grade 12')}${v.minAps?' · APS '+v.minAps+'+':''} · ${esc(fieldLabel(v.field))} · ${esc(v.location)} · Posted ${v.date} · ${mine.length} applicant${mine.length===1?'':'s'}${pend?` (${pend} pending)`:''}</div>
       </div>
       <button class="btn btn-sm btn-ghost" onclick="toggleVacancy('${v.id}')">${v.closed?'Reopen':'Close vacancy'}</button>
     `;

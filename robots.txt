@@ -1,0 +1,8 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /private/
+
+Sitemap: https://careerconnectsa.netlify.app/sitemap.xml
+
+# CareerConnect SA - Helping South Africans find jobs
